@@ -9,6 +9,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:shiyu_app/core/db/database.dart';
+import 'package:shiyu_app/core/utils/remind_calc.dart';
 import 'package:shiyu_app/features/growth/data/ranks.dart';
 
 void main() {
@@ -69,6 +70,43 @@ void main() {
       final second = await db.completeTaskAndAwardXp(task);
       expect(second.xp, 0);
       expect((await db.ensureUser()).xpTotal, userBefore.xpTotal);
+    });
+
+    test('取消完成后再完成不重复结算（防完成→取消→再完成刷经验）', () async {
+      final today = DateTime.now();
+      final todayDay = DateTime(today.year, today.month, today.day);
+
+      final id = await db.addTask(
+        TasksCompanion.insert(
+          title: '取消后再完成',
+          date: todayDay,
+          quadrant: const Value(2),
+          difficulty: const Value(2),
+        ),
+      );
+      var task = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+
+      // 第一次完成：结算 XP
+      final first = await db.completeTaskAndAwardXp(task);
+      expect(first.xp, greaterThan(0));
+      final userAfterFirst = await db.ensureUser();
+
+      // 取消完成（XP 不回收获益，但任务回到未完成）
+      await db.uncompleteTask(task);
+      final refreshed = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      expect(refreshed.isDone, isFalse);
+      expect(refreshed.xpAwarded, greaterThan(0)); // 保留历史结算标记
+
+      // 再次完成：只恢复完成状态，不重复结算 XP（防刷）
+      task = refreshed;
+      final second = await db.completeTaskAndAwardXp(task);
+      expect(second.xp, 0);
+      final userAfterSecond = await db.ensureUser();
+      expect(userAfterSecond.xpTotal, userAfterFirst.xpTotal);
+
+      // 任务恢复为已完成
+      final done = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      expect(done.isDone, isTrue);
     });
 
     test('未完成任务不可跳过结算（未完成状态直接调用返回 0）', () async {
@@ -166,53 +204,65 @@ void main() {
   });
 
   group('事件提前提醒时刻', () {
-    test('有具体时间：提醒 = 事件时间 - remindMinutes', () async {
-      final date = DateTime(2026, 10, 1);
+    test('有具体时间：提醒 = 事件时间 - remindMinutes', () {
       final time = DateTime(2026, 10, 1, 14, 30);
-      final remindAt = _remindAt(date, time, 15);
+      final remindAt = computeEventRemindAt(
+        date: time,
+        time: time,
+        remindMinutes: 15,
+        now: DateTime(2026, 10, 1, 8, 0),
+      );
       expect(remindAt, DateTime(2026, 10, 1, 14, 15));
     });
 
-    test('提前 1 天：提醒 = 前一天同时刻', () async {
-      final date = DateTime(2026, 12, 25);
+    test('提前 1 天：提醒 = 前一天同时刻', () {
       final time = DateTime(2026, 12, 25, 10, 0);
-      final remindAt = _remindAt(date, time, 1440);
+      final remindAt = computeEventRemindAt(
+        date: time,
+        time: time,
+        remindMinutes: 1440,
+        now: DateTime(2026, 12, 1, 8, 0),
+      );
       expect(remindAt, DateTime(2026, 12, 24, 10, 0));
     });
 
-    test('提醒时刻已过去但事件未发生：修正为 1 分钟后提醒', () async {
-      final now = DateTime.now();
+    test('提醒时刻已过去但事件未发生：修正为 1 分钟后提醒', () {
       // 事件在 10 分钟后，提前 15 分钟 → 提醒时刻已过 → 修正为 now+1min
+      final now = DateTime(2026, 6, 1, 12, 0);
       final eventAt = now.add(const Duration(minutes: 10));
-      final remindAt = _remindAt(
-        DateTime(eventAt.year, eventAt.month, eventAt.day),
-        eventAt,
-        15,
+      final remindAt = computeEventRemindAt(
+        date: DateTime(eventAt.year, eventAt.month, eventAt.day),
+        time: eventAt,
+        remindMinutes: 15,
+        now: now,
       );
       expect(remindAt.isAfter(now), isTrue);
       expect(remindAt.difference(now).inMinutes, lessThanOrEqualTo(2));
     });
 
-    test('全天事件：按当天 09:00 提醒', () async {
-      final date = DateTime(2026, 11, 5);
-      final remindAt = _remindAt(date, null, 15);
-      expect(remindAt, DateTime(2026, 11, 5, 9, 0));
+    test('全天事件：以当天 09:00 为基准提前 remindMinutes', () {
+      final remindAt = computeEventRemindAt(
+        date: DateTime(2026, 11, 5),
+        time: null,
+        remindMinutes: 15,
+        now: DateTime(2026, 11, 5, 8, 0),
+      );
+      // 09:00 - 15min = 08:45（早于当天 00:00 才钳制，这里不触发）
+      expect(remindAt, DateTime(2026, 11, 5, 8, 45));
+    });
+
+    test('全天事件提前 1 天：下限钳到当天 00:00', () {
+      // 事件在未来的某天：09:00 - 24h = 前一天 09:00，早于当天 00:00 → 钳到当天 00:00
+      // （事件在未来，提醒时刻尚未过去，不触发「修正为 now+1min」）
+      final remindAt = computeEventRemindAt(
+        date: DateTime(2027, 1, 5),
+        time: null,
+        remindMinutes: 1440,
+        now: DateTime(2026, 11, 5, 8, 0),
+      );
+      expect(remindAt, DateTime(2027, 1, 5, 0, 0));
     });
   });
-}
-
-/// 与 add_event_sheet.dart 相同的提醒时刻计算（复制实现以测数据逻辑）
-DateTime _remindAt(DateTime date, DateTime? timeDateTime, int remindMinutes) {
-  final now = DateTime.now();
-  final eventAt = timeDateTime ??
-      DateTime(date.year, date.month, date.day, 23, 59);
-  var remindAt = timeDateTime != null
-      ? timeDateTime.subtract(Duration(minutes: remindMinutes))
-      : DateTime(date.year, date.month, date.day, 9, 0);
-  if (remindAt.isBefore(now) && eventAt.isAfter(now)) {
-    remindAt = now.add(const Duration(minutes: 1));
-  }
-  return remindAt;
 }
 
 /// 找到 [yearMonthDay] 之前（含当天）最近的星期 [weekday]（1=周一..7=周日）

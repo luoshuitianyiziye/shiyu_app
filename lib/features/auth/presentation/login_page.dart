@@ -15,6 +15,7 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _controller = TextEditingController();
+  bool _saving = false; // 登录防连点（异步写 prefs 期间忽略重复点击）
 
   @override
   void dispose() {
@@ -23,6 +24,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     final name = _controller.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -30,10 +32,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       );
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('nickname', name);
-    ref.read(nicknameNotifierProvider).value = name;
-    // 路由 redirect 会自动跳转到主壳
+    setState(() => _saving = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('nickname', name);
+      ref.read(nicknameNotifierProvider).value = name;
+      // 路由 redirect 会自动跳转到主壳
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -80,11 +87,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 FilledButton(
-                  onPressed: _save,
+                  onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('开始我的时屿', style: TextStyle(fontSize: 16)),
+                  child: Text(
+                    _saving ? '进入中…' : '开始我的时屿',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text(

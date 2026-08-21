@@ -8,6 +8,7 @@ import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/format.dart';
 import '../data/quadrants.dart';
 
 /// 新建任务底部弹层
@@ -314,7 +315,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               title: Text('设置开始时段', style: TextStyle(color: palette.textPrimary)),
               subtitle: Text(
                 _withTime && _startTime != null
-                    ? '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')} 开始提醒'
+                    ? '${formatHm(_startTime!.hour, _startTime!.minute)} 开始提醒'
                     : '到时提醒我',
                 style: TextStyle(color: palette.textSecondary, fontSize: 12),
               ),

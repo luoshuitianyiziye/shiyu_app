@@ -77,9 +77,10 @@ final statsSnapshotProvider = FutureProvider<StatsSnapshot>((ref) async {
   final sessionsThisWeek =
       await db.pomodoroSessionsBetween(weekStart, weekEnd);
 
-  // 累计
+  // 累计：用足够早的起始日期兜底（App 上线前的时间不可能有记录），
+  // 避免硬编码年份在未来失效导致统计漏掉早期数据
   final allSessions =
-      await db.pomodoroSessionsBetween(DateTime(2020), weekEnd);
+      await db.pomodoroSessionsBetween(DateTime(1970), weekEnd);
 
   // 最近 7 天每日番茄数（索引 0 = 6 天前）
   final last7 = List<int>.filled(7, 0);

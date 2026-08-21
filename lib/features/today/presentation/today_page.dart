@@ -8,12 +8,14 @@ import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/confirm_dialog.dart';
+import '../../../core/utils/format.dart';
 import '../../growth/data/ranks.dart';
 import '../../growth/presentation/rank_up_dialog.dart';
 import '../data/quadrants.dart';
 import 'add_task_sheet.dart';
 
-const _weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+const _weekdayNames = kWeekdayNames;
 
 const _difficultyNames = {1: '简单', 2: '普通', 3: '困难'};
 
@@ -177,8 +179,30 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
     });
   }
 
+  /// 批量恢复：统一恢复选中的已完成任务为未完成（循环外只重建一次收尾提醒，
+  /// 避免 N 个任务触发 N 次全量调度）
+  Future<void> _restoreSelected() async {
+    final db = ref.read(databaseProvider);
+    for (final id in _selected.toList()) {
+      final task = widget.tasks.where((t) => t.id == id).firstOrNull;
+      if (task != null) {
+        await _restoreTask(task, syncEndOfDay: false);
+      } else {
+        await db.uncompleteTaskById(id);
+      }
+    }
+    ref.invalidate(statsSnapshotProvider);
+    await rescheduleEndOfDay(db);
+    if (mounted) setState(() => _selected.clear());
+  }
+
   /// 恢复任务为未完成，并按开始时间重建提醒（完成/删除时取消的提醒恢复对称）。
-  Future<void> _restoreTask(TaskRow task) async {
+  /// [syncEndOfDay] 默认 true（单任务恢复时立即同步收尾提醒）；
+  /// 批量恢复传 false，由外层统一调度一次。
+  Future<void> _restoreTask(
+    TaskRow task, {
+    bool syncEndOfDay = true,
+  }) async {
     final db = ref.read(databaseProvider);
     await db.uncompleteTaskById(task.id);
     final st = task.startTime;
@@ -190,41 +214,19 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
       );
     }
     ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
-  }
-
-  Future<void> _restoreSelected() async {
-    final db = ref.read(databaseProvider);
-    for (final id in _selected.toList()) {
-      final task = widget.tasks.where((t) => t.id == id).firstOrNull;
-      if (task != null) {
-        await _restoreTask(task);
-      } else {
-        await db.uncompleteTaskById(id);
-      }
+    if (syncEndOfDay) {
+      await rescheduleEndOfDay(db);
     }
-    ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
-    if (mounted) setState(() => _selected.clear());
   }
 
   Future<void> _deleteSelected() async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
     final count = _selected.length;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('彻底删除'),
-        content: Text('将永久删除 $count 个已完成任务（经验保留，无法恢复）'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('彻底删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '彻底删除',
+      content: '将永久删除 $count 个已完成任务（经验保留，无法恢复）',
+      confirmText: '彻底删除',
+      danger: true,
     );
     if (ok != true || !mounted) return;
     final db = ref.read(databaseProvider);
@@ -451,7 +453,7 @@ class _DoneTaskTile extends StatelessWidget {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final q = quadrantById(task.quadrant);
     final timeStr = task.startTime != null
-        ? '${task.startTime!.hour.toString().padLeft(2, '0')}:${task.startTime!.minute.toString().padLeft(2, '0')}'
+        ? formatHm(task.startTime!.hour, task.startTime!.minute)
         : null;
 
     return Card(
@@ -552,13 +554,18 @@ class _TaskTile extends ConsumerWidget {
 
   /// 连点防护：刚完成的任务在短时间内忽略「恢复」点击，
   /// 避免第三次连点命中已刷新的 tile 把任务撤销回未完成。
+  /// 上限防无限增长：超过 200 条整体清空（旧条目只是失去 1s 防护，无副作用）。
   static final Map<int, DateTime> _recentlyCompleted = {};
+  static const int _recentlyCompletedCap = 200;
 
   Future<void> _toggle(BuildContext context, WidgetRef ref) async {
     final db = ref.read(databaseProvider);
     try {
       if (!task.isDone) {
         _recentlyCompleted[task.id] = DateTime.now();
+        if (_recentlyCompleted.length > _recentlyCompletedCap) {
+          _recentlyCompleted.clear();
+        }
         final result = await db.completeTaskAndAwardXp(task);
         await NotificationService.instance.cancelTaskReminder(task.id);
         ref.invalidate(statsSnapshotProvider);
@@ -607,21 +614,12 @@ class _TaskTile extends ConsumerWidget {
 
   /// 左滑「删除」：确认后删除并取消提醒、刷新收尾提醒
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除任务'),
-        content: Text('「${task.title}」将从列表移除'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除任务',
+      content: '「${task.title}」将从列表移除',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok != true) return;
     final db = ref.read(databaseProvider);
@@ -636,7 +634,7 @@ class _TaskTile extends ConsumerWidget {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final q = quadrantById(task.quadrant);
     final timeStr = task.startTime != null
-        ? '${task.startTime!.hour.toString().padLeft(2, '0')}:${task.startTime!.minute.toString().padLeft(2, '0')}'
+        ? formatHm(task.startTime!.hour, task.startTime!.minute)
         : null;
 
     return Padding(

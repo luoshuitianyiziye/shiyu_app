@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../app/providers.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/utils/confirm_dialog.dart';
 import '../data/ranks.dart';
 
 /// 个人资料页：头像（当前段位图）/ 昵称修改 / 成长信息 / 退出登录
@@ -66,21 +67,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _logout() async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('退出登录'),
-        content: const Text('退出后数据仍保留在本机，重新输入昵称即可回来'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('退出'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '退出登录',
+      content: '退出后数据仍保留在本机，重新输入昵称即可回来',
+      confirmText: '退出',
+      danger: true,
     );
     if (ok != true || !mounted) return;
     final prefs = await SharedPreferences.getInstance();

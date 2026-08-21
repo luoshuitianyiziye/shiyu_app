@@ -9,6 +9,8 @@ import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/format.dart';
+import '../../../core/utils/remind_calc.dart';
 
 /// 新建日历事件底部弹层
 Future<void> showAddEventSheet(BuildContext context, {DateTime? initialDate}) {
@@ -164,28 +166,14 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
     if (picked != null && mounted) setState(() => _remindMinutes = picked);
   }
 
-  /// 计算提醒时刻：提前 remindMinutes；若提醒时刻已过去但事件尚未发生，
-  /// 改为 1 分钟后立即提醒（避免提前提醒被静默丢弃）。
-  /// 全天事件：以当天 09:00 为基准提前 remindMinutes（下限钳到当天 00:00）。
-  DateTime _remindAt(DateTime date, DateTime? timeDateTime, int remindMinutes) {
-    final now = DateTime.now();
-    // 全天事件视为当天 23:59 发生（用于判断是否已过去）
-    final eventAt = timeDateTime ??
-        DateTime(date.year, date.month, date.day, 23, 59);
-    final DateTime remindAt;
-    if (timeDateTime != null) {
-      remindAt = timeDateTime.subtract(Duration(minutes: remindMinutes));
-    } else {
-      final base = DateTime(date.year, date.month, date.day, 9, 0);
-      final early = base.subtract(Duration(minutes: remindMinutes));
-      final dayStart = DateTime(date.year, date.month, date.day);
-      remindAt = early.isBefore(dayStart) ? dayStart : early;
-    }
-    if (remindAt.isBefore(now) && eventAt.isAfter(now)) {
-      return now.add(const Duration(minutes: 1));
-    }
-    return remindAt;
-  }
+  /// 计算提醒时刻（规则见 [computeEventRemindAt]：提前提醒 / 全天事件 /
+  /// 已过时刻修正 / 下限钳制）
+  DateTime _remindAt(DateTime date, DateTime? timeDateTime, int remindMinutes) =>
+      computeEventRemindAt(
+        date: date,
+        time: timeDateTime,
+        remindMinutes: remindMinutes,
+      );
 
   Future<void> _save() async {
     if (_saving) return;
@@ -322,7 +310,7 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.access_time),
               title: Text(
-                _time == null ? '全天（当天 09:00 提醒）' : '时间 ${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}',
+                _time == null ? '全天（当天 09:00 提醒）' : '时间 ${formatHm(_time!.hour, _time!.minute)}',
                 style: TextStyle(color: palette.textPrimary),
               ),
               trailing: const Icon(Icons.chevron_right),

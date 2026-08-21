@@ -8,6 +8,7 @@ import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/format.dart';
 import '../../focus/data/custom_noise.dart';
 import '../../focus/data/white_noise.dart';
 
@@ -88,7 +89,7 @@ class SettingsPage extends ConsumerWidget {
                 title: const Text('每日收尾提醒'),
                 subtitle: const Text('每天固定时间提醒未完成任务'),
                 trailing: Text(
-                  _formatTime(s.endOfDayHour, s.endOfDayMinute),
+                  formatHm(s.endOfDayHour, s.endOfDayMinute),
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -204,13 +205,9 @@ class SettingsPage extends ConsumerWidget {
     if (context.mounted) {
       FeedbackDebouncer.toast(
         context,
-        '收尾提醒已设为每天 ${_formatTime(picked.hour, picked.minute)}',
+        '收尾提醒已设为每天 ${formatHm(picked.hour, picked.minute)}',
       );
     }
-  }
-
-  static String _formatTime(int hour, int minute) {
-    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
   }
 
   /// 默认白噪音显示名（含自定义音轨）

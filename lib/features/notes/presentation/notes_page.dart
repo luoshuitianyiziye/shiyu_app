@@ -11,6 +11,8 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/utils/confirm_dialog.dart';
+import '../../../core/utils/format.dart';
 import '../data/note_image_store.dart';
 import 'note_editor_page.dart';
 
@@ -214,10 +216,7 @@ class _CategoryFilterBar extends StatelessWidget {
   }
 }
 
-Color _parseColor(String hex) {
-  final v = int.tryParse(hex.replaceFirst('#', ''), radix: 16) ?? 0x9DBB9B;
-  return Color(0xFF000000 | v);
-}
+Color _parseColor(String hex) => parseHexColor(hex);
 
 /// 分类管理弹层：新增 / 重命名 / 删除（实时响应数据库变化）
 class _CategoryManagerSheet extends ConsumerStatefulWidget {
@@ -280,21 +279,12 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
   }
 
   Future<void> _delete(NoteCategoryRow c) async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除分类'),
-        content: Text('删除「${c.name}」后，该分类下的笔记将变为未分类'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除分类',
+      content: '删除「${c.name}」后，该分类下的笔记将变为未分类',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok == true) {
       await ref.read(databaseProvider).deleteNoteCategory(c.id);
@@ -462,21 +452,12 @@ class _NoteCard extends ConsumerWidget {
 
   /// 左滑「删除」：确认后删除并清理图片文件
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除笔记'),
-        content: Text('「${note.title}」将被删除'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除笔记',
+      content: '「${note.title}」将被删除',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok != true) return;
     await ref.read(databaseProvider).softDeleteNote(note.id);

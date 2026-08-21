@@ -12,6 +12,7 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/utils/format.dart';
 import '../data/note_image_store.dart';
 
 /// 从 Delta JSON 中提取本地图片路径列表（缩略图 / 清理用）
@@ -724,13 +725,6 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
   // ---------- 分类选择 ----------
 
-  Color _colorFromHex(String hex) {
-    var h = hex.replaceFirst('#', '');
-    if (h.length == 6) h = 'FF$h';
-    final v = int.tryParse(h, radix: 16) ?? 0xFF9DBB9B;
-    return Color(v);
-  }
-
   String _categoryLabel(List<NoteCategoryRow> cats) {
     if (_categoryId == null) return '未分类';
     for (final c in cats) {
@@ -757,7 +751,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
             value: c.id,
             label: c.name,
             icon: Icons.folder,
-            color: _colorFromHex(c.color),
+            color: parseHexColor(c.color),
           ),
       ],
     );

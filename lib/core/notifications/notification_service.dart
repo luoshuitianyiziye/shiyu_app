@@ -32,7 +32,9 @@ int _endOfDayVersion = 0;
 ///
 /// 平台注意：
 /// - Android 需在 Manifest 声明权限与接收器，并在 build.gradle.kts 开启 desugaring
-/// - iOS 单 App 待发通知上限 64 条 → 采用「未来 7 天滚动窗口」调度
+/// - iOS 单 App 待发通知上限 64 条：目前任务/事件提醒直接逐条调度，
+///   超限后系统会静默丢弃新增的本地通知（待办：实现「未来 7 天滚动窗口」
+///   或提醒数量上限控制后再上架 iOS）
 class NotificationService {
   NotificationService._();
 

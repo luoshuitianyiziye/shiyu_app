@@ -275,8 +275,15 @@ class AppDatabase extends _$AppDatabase {
   /// 完成任务并结算经验（事务），返回所得经验 + 段位变化。
   /// 事务内重读任务状态：已完成/已删除的任务不重复结算（防连点刷经验）。
   /// 同时结算「连续打卡」：昨天完成过 +1，今天已完成过不变，否则重置为 1。
+  ///
+  /// 防刷规则：
+  /// - 任务处于已完成/已删除 → 不结算（返回 xp=0）
+  /// - 任务曾被结算过（xpAwarded > 0）且被取消完成 → 属于「重复完成」，
+  ///   只恢复完成状态，**不再结算 XP、不写流水、不叠加连胜**
+  ///   （完成→取消→再完成无法刷经验/连胜）
   Future<({int xp, int oldRank, int newRank})> completeTaskAndAwardXp(TaskRow task) async {
     var skipped = false;
+    var repeated = false;
     late int xp;
     late int oldRank;
     late int newRank;
@@ -287,6 +294,28 @@ class AppDatabase extends _$AppDatabase {
       final user = await ensureUser();
       if (current == null || current.isDone || current.deleted) {
         skipped = true;
+        oldRank = user.rank;
+        newRank = user.rank;
+        return;
+      }
+      // 重复完成：xpAwarded > 0 说明此前结算过又被取消。仅恢复完成态，
+      // 不重复结算 XP（XP 与连胜都不再叠加），但仍推进历史最高完成数。
+      if (current.xpAwarded > 0) {
+        repeated = true;
+        await (update(tasks)..where((t) => t.id.equals(task.id))).write(
+          TasksCompanion(
+            isDone: const Value(true),
+            doneAt: Value(DateTime.now()),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+        final completedCount = await completedTaskCount();
+        final newMaxTasksDone = completedCount > user.maxTasksDone
+            ? completedCount
+            : user.maxTasksDone;
+        await (update(users)..where((u) => u.id.equals(user.id))).write(
+          UsersCompanion(maxTasksDone: Value(newMaxTasksDone)),
+        );
         oldRank = user.rank;
         newRank = user.rank;
         return;
@@ -306,27 +335,21 @@ class AppDatabase extends _$AppDatabase {
         XpLogsCompanion.insert(amount: xp, reason: '完成任务「${current.title}」'),
       );
 
-      // H1：连续打卡结算。任务曾被结算过且被取消完成（xpAwarded > 0）
-      // 属于「重复完成」，不再叠加 streak，避免完成→取消→再完成刷连胜。
+      // H1：连续打卡结算。昨天完成过 +1；今天已完成过不变；否则重置为 1。
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final int newStreak;
-      if (current.xpAwarded > 0) {
-        // 重复完成：保持现有 streak 不变（XP 仍按设计不回收获益，但连胜不膨胀）
-        newStreak = user.streakDays;
+      final lastDone = await _lastDoneDateExcluding(task.id);
+      if (lastDone == null) {
+        newStreak = 1;
       } else {
-        final lastDone = await _lastDoneDateExcluding(task.id);
-        if (lastDone == null) {
-          newStreak = 1;
+        final diff = today.difference(lastDone).inDays;
+        if (diff == 0) {
+          newStreak = user.streakDays;
+        } else if (diff == 1) {
+          newStreak = user.streakDays + 1;
         } else {
-          final diff = today.difference(lastDone).inDays;
-          if (diff == 0) {
-            newStreak = user.streakDays;
-          } else if (diff == 1) {
-            newStreak = user.streakDays + 1;
-          } else {
-            newStreak = 1;
-          }
+          newStreak = 1;
         }
       }
 
@@ -348,7 +371,7 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     });
-    if (skipped) return (xp: 0, oldRank: oldRank, newRank: newRank);
+    if (skipped || repeated) return (xp: 0, oldRank: oldRank, newRank: newRank);
     return (xp: xp, oldRank: oldRank, newRank: newRank);
   }
 

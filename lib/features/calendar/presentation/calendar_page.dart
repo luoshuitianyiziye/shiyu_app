@@ -8,9 +8,11 @@ import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/confirm_dialog.dart';
+import '../../../core/utils/format.dart';
 import 'add_event_sheet.dart';
 
-const _weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+const _weekdayNames = kWeekdayNames;
 
 /// 日历页：月视图（事件标记 + 当天提醒）+ 倒数日视图
 class CalendarPage extends ConsumerStatefulWidget {
@@ -270,21 +272,12 @@ class _EventCard extends ConsumerWidget {
 
   /// 左滑「删除」：确认后删除并取消提醒
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除事件'),
-        content: Text('「${event.title}」将被移除'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除事件',
+      content: '「${event.title}」将被移除',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok != true) return;
     await ref.read(databaseProvider).softDeleteEvent(event.id);
@@ -295,7 +288,7 @@ class _EventCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final timeStr = event.time != null
-        ? '${event.time!.hour.toString().padLeft(2, '0')}:${event.time!.minute.toString().padLeft(2, '0')}'
+        ? formatHm(event.time!.hour, event.time!.minute)
         : '全天';
 
     return Padding(
@@ -374,21 +367,12 @@ class _CountdownCard extends ConsumerWidget {
 
   /// 左滑「删除」：确认后删除并取消提醒
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除事件'),
-        content: Text('「${event.title}」将被移除'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: palette.danger),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除事件',
+      content: '「${event.title}」将被移除',
+      confirmText: '删除',
+      danger: true,
     );
     if (ok != true) return;
     await ref.read(databaseProvider).softDeleteEvent(event.id);
@@ -436,8 +420,7 @@ class _CountdownCard extends ConsumerWidget {
               _detailRow(
                 context,
                 icon: Icons.access_time,
-                text:
-                    '${event.time!.hour.toString().padLeft(2, '0')}:${event.time!.minute.toString().padLeft(2, '0')}',
+                text: formatHm(event.time!.hour, event.time!.minute),
               ),
             if (event.note.isNotEmpty)
               _detailRow(context, icon: Icons.notes, text: event.note),
