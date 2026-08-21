@@ -1,0 +1,105 @@
+# 时屿 · 日程笔记
+
+> 一款集「每日任务 + 番茄专注 + 日历提醒 + 笔记」于一体的养成系效率 App。
+> 完成任务获得经验，升级解锁九大段位插画，让自律像游戏一样有趣。
+
+## ✨ 功能特性
+
+- 🔐 **昵称登录**：无需注册，输入昵称即可开始
+- ✅ **每日任务**：四象限分类 + 难度分级，完成任务获得经验
+- 📈 **成长体系**：经验 → 等级 → 九大段位（雾芽 / 浅湾 / 青屿 / 竹林 / 松风 / 远山 / 星河 / 沧海 / 时屿），每升一段位解锁一张插画
+- ⏰ **任务时段与提醒**：为任务设定时段，到点提醒；最晚未完成任务提醒
+- 🍅 **番茄专注 + 白噪音**：25 分钟专注计时，内置雨声 / 海浪 / 篝火 / 风声，支持自定义上传白噪音
+- 📅 **日历事件**：添加事件并设置提前提醒，支持倒数日
+- 📝 **完整笔记**：富文本编辑器，支持文字 + 图片 + 待办清单
+- 🎨 **莫兰迪主题**：清雅淡绿色系，支持浅色 / 深色切换
+
+## 🛠 技术栈
+
+| 技术 | 用途 |
+|---|---|
+| Flutter 3.47 / Dart 3.13 | 跨平台 UI 框架（Android / iOS / HarmonyOS） |
+| Riverpod 2.x | 状态管理 |
+| go_router | 页面路由导航 |
+| drift (SQLite) | 本地数据库，8 张数据表 |
+| flutter_local_notifications | 本地通知提醒 |
+| just_audio | 白噪音播放 |
+| flutter_quill | 富文本笔记编辑器 |
+| image_picker + flutter_image_compress | 图片选择与压缩 |
+| flutter_slidable | 左滑编辑 / 右滑完成手势 |
+| shared_preferences | 轻量偏好存储 |
+
+## 📁 项目结构
+
+```
+lib/
+├── main.dart                 # 入口：主题加载、跨午夜定时器
+├── app/                      # 应用级：路由、主题、公共组件、全局 Provider
+├── core/                     # 核心：数据库(8表)、通知服务、反馈提示
+└── features/                 # 功能模块（每个功能 = data 数据层 + presentation 界面层）
+    ├── auth/                 # 昵称登录
+    ├── today/                # 今日任务
+    ├── focus/                # 番茄钟 + 白噪音
+    ├── calendar/             # 日历事件
+    ├── notes/                # 笔记
+    ├── growth/               # 成长段位
+    └── settings/             # 设置
+```
+
+## 🚀 运行项目
+
+### 环境要求
+
+- Flutter SDK 3.47+（[安装教程](https://flutter.cn/docs/get-started/install)）
+- Android Studio 或任意支持 Flutter 的 IDE
+- 真机或模拟器（Android / iOS）
+
+### 步骤
+
+```bash
+# 1. 克隆项目
+git clone <你的仓库地址>
+
+# 2. 安装依赖
+cd shiyu_app
+flutter pub get
+
+# 3. 运行
+flutter run
+```
+
+### 打包 APK
+
+```bash
+# Debug 包
+flutter build apk --debug
+
+# Release 包（需要配置签名，见下文）
+flutter build apk --release
+```
+
+> **关于签名**：仓库中的 `android/key.properties` 与 `*.jks` 已被 `.gitignore` 排除，不会随代码上传。正式发布请自行使用 `keytool` 生成签名密钥并配置。
+
+## 🧪 测试
+
+```bash
+flutter analyze    # 静态检查
+flutter test       # 单元测试 + 核心链路测试（12 项）
+```
+
+## 📖 技术文档
+
+面向技术小白的完整项目讲解文档见 `docs/` 目录（含技术栈、目录结构、核心机制、关键代码解读、踩坑记录）。
+
+## 📄 隐私说明
+
+- 所有数据（任务、笔记、事件）均存储在**本地设备**，不上传任何服务器
+- 白噪音与段位插画素材均为已获授权的原创 / 授权内容
+
+## 📜 License
+
+> 待你选择开源许可证（推荐 MIT / Apache-2.0），确定后在此补充并添加 LICENSE 文件。
+
+---
+
+**「时屿」** —— 把每一天过成一座岛，慢慢长出想要的自己。
