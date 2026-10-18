@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 时屿 · 日程笔记 —— 图标背景（清淡雾绿渐变） -->
+<!-- 时屿 · 日程笔记 —— 应用图标背景（取图标主图边缘色，与自适应图标前景融合） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <gradient
-        android:angle="315"
-        android:startColor="#CFE0C6"
-        android:endColor="#AFC9A6"
-        android:type="linear" />
+    <solid android:color="#F2D1B6" />
 </shape>
