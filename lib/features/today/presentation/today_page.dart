@@ -51,6 +51,7 @@ class TodayPage extends ConsumerWidget {
       body: Column(
         children: [
           _HeaderCard(userAsync: userAsync),
+          const _DailyReviewCard(),
           Expanded(
             child: tasksAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -159,6 +160,53 @@ class _HeaderCard extends StatelessWidget {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// 今日复盘卡片：完成率 + 本周番茄数 + 连续打卡（数据来自统计快照）
+class _DailyReviewCard extends ConsumerWidget {
+  const _DailyReviewCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    final stats = ref.watch(statsSnapshotProvider).value;
+    if (stats == null) return const SizedBox.shrink();
+
+    final rate = stats.todayRate;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(Icons.insights_outlined, size: 18, color: palette.primaryDark),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stats.todayTotal == 0
+                          ? '今日还没有任务，去添加一个吧'
+                          : '今日完成 ${stats.todayDone}/${stats.todayTotal} 项'
+                              '（${(rate * 100).round()}%）',
+                      style: TextStyle(fontSize: 13, color: palette.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '本周番茄 ${stats.weekPomodoros} · 连续打卡 ${stats.streakDays} 天',
+                      style: TextStyle(fontSize: 11, color: palette.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

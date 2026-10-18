@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
@@ -38,6 +39,26 @@ class _FocusPageState extends ConsumerState<FocusPage> {
   bool _completing = false; // 阶段结算防重入：倒计时归零瞬间与「跳过」互斥
   int _noiseOp = 0; // 白噪音操作代号：快速切换音轨时旧加载完成不覆盖新选择
   int _startEpoch = 0; // 开始代号：加载白噪音期间被重置/暂停则丢弃本次开始
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVolume();
+  }
+
+  /// 读取上次保存的音量（默认 0.7）
+  Future<void> _loadVolume() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble('focus_volume');
+    if (saved == null || !mounted) return;
+    setState(() => _volume = saved.clamp(0.0, 1.0).toDouble());
+    await _player.setVolume(_volume);
+  }
+
+  Future<void> _saveVolume(double v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('focus_volume', v);
+  }
 
   @override
   void dispose() {
@@ -517,6 +538,8 @@ class _FocusPageState extends ConsumerState<FocusPage> {
                     setState(() => _volume = v);
                     _player.setVolume(v);
                   },
+                  // 拖动结束再落盘，避免拖动过程频繁写 prefs
+                  onChangeEnd: _saveVolume,
                 ),
               ),
               Icon(Icons.volume_up, size: 18, color: palette.textSecondary),

@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -398,6 +399,25 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
   // ---------- 保存 ----------
 
+  /// 复制笔记全文纯文本到剪贴板（密码/清单类笔记快速取用）
+  Future<void> _copyPlainText() async {
+    final text = _quill.document.toPlainText();
+    if (text.trim().isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('笔记为空，没有可复制的内容')),
+        );
+      }
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已复制全文')),
+      );
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     final title = _titleController.text.trim();
@@ -777,6 +797,11 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
       appBar: AppBar(
         title: Text(_isNew ? '新笔记' : '编辑笔记'),
         actions: [
+          IconButton(
+            onPressed: _copyPlainText,
+            icon: const Icon(Icons.copy_all_outlined),
+            tooltip: '复制全文',
+          ),
           TextButton(
             onPressed: _saving ? null : _save,
             child: const Text('保存'),

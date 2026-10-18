@@ -1,13 +1,18 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
+import '../../../core/backup/backup_service.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/notification_service.dart';
+import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import '../../focus/data/custom_noise.dart';
 import '../../focus/data/white_noise.dart';
@@ -157,6 +162,10 @@ class SettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
+
+            // ===== 数据备份 =====
+            const _GroupTitle('数据备份'),
+            const _BackupCard(),
 
             // ===== 关于 =====
             const _GroupTitle('关于'),
@@ -381,6 +390,109 @@ class _StepperRow extends StatelessWidget {
             icon: const Icon(Icons.add_circle_outline),
             color: palette.textSecondary,
             tooltip: '增加',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 数据备份卡片：导出 JSON 备份文件 / 从备份恢复（覆盖式）
+class _BackupCard extends ConsumerStatefulWidget {
+  const _BackupCard();
+
+  @override
+  ConsumerState<_BackupCard> createState() => _BackupCardState();
+}
+
+class _BackupCardState extends ConsumerState<_BackupCard> {
+  bool _busy = false;
+
+  Future<void> _export() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final ok = await BackupService.exportToFile(ref.read(databaseProvider));
+      if (!mounted) return;
+      if (ok) {
+        FeedbackDebouncer.toast(context, '备份已导出，恢复时选择该文件即可');
+      }
+    } catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, '导出失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restore() async {
+    if (_busy) return;
+    final picked = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+      dialogTitle: '选择时屿备份文件',
+    );
+    if (picked == null || !mounted) return;
+    final ok = await showConfirmDialog(
+      context,
+      title: '恢复备份',
+      content: '将从「${picked.name}」恢复数据，当前全部数据会被覆盖。确定继续？',
+      confirmText: '恢复',
+      danger: true,
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final path = picked.path;
+      if (path == null) throw const FormatException('无法读取所选文件');
+      final summary =
+          await BackupService.restoreFromFile(ref.read(databaseProvider), File(path));
+      // 统计快照手动刷新（任务/笔记列表由 drift watch 流自动刷新）
+      ref.invalidate(statsSnapshotProvider);
+      if (mounted) {
+        FeedbackDebouncer.toast(context, '恢复成功：$summary');
+      }
+    } catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, '恢复失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(
+              Icons.upload_file_outlined,
+              color: palette.primaryDark,
+              size: 26,
+            ),
+            title: const Text('导出备份'),
+            subtitle: const Text('保存为 JSON 文件，可放到云盘/聊天工具长期保存'),
+            trailing: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _busy ? null : _export,
+          ),
+          Divider(height: 1, indent: 56, color: palette.accent),
+          ListTile(
+            leading: Icon(
+              Icons.download_outlined,
+              color: palette.primaryDark,
+              size: 26,
+            ),
+            title: const Text('从备份恢复'),
+            subtitle: const Text('选择备份文件恢复（会覆盖当前全部数据）'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _busy ? null : _restore,
           ),
         ],
       ),
