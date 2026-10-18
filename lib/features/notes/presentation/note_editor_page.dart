@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,6 +13,7 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import '../data/note_image_store.dart';
 
@@ -101,7 +103,19 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
   void _onQuillChanged() {
     if (!mounted) return;
     setState(() {});
-    _syncChecklistStrike();
+    _scheduleChecklistSync();
+  }
+
+  /// checklist 删除线同步的防抖定时器：输入过程中高频触发，
+  /// 合并为 150ms 一次，避免长笔记每个按键都全文档扫描。
+  Timer? _checklistSyncTimer;
+
+  void _scheduleChecklistSync() {
+    _checklistSyncTimer?.cancel();
+    _checklistSyncTimer = Timer(
+      const Duration(milliseconds: 150),
+      _syncChecklistStrike,
+    );
   }
 
   /// 任务列表勾选 → 行文字加删除线；取消勾选 → 移除删除线。
@@ -156,6 +170,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
   @override
   void dispose() {
+    _checklistSyncTimer?.cancel();
     _quill.removeListener(_onQuillChanged);
     _titleController.dispose();
     _quill.dispose();
@@ -239,23 +254,14 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
       setState(() => _captions.remove(path));
     } else if (action == 'delete') {
       // 删除图片不可撤销（本地文件立即移除）：先确认，避免误触丢失内容
-      final palette = Theme.of(context).extension<MorandiPalette>()!;
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('删除图片'),
-          content: const Text('将从笔记中移除这张图片（本地文件一并删除，不可恢复）'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: TextButton.styleFrom(foregroundColor: palette.danger),
-              child: const Text('删除'),
-            ),
-          ],
-        ),
+      final ok = await showConfirmDialog(
+        context,
+        title: '删除图片',
+        content: '将从笔记中移除这张图片（本地文件一并删除，不可恢复）',
+        confirmText: '删除',
+        danger: true,
       );
-      if (ok == true) _deleteImageByPath(path);
+      if (ok) _deleteImageByPath(path);
     }
   }
 
@@ -335,29 +341,15 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
   /// 为图片添加/编辑一行小字说明
   Future<void> _editCaption(String path) async {
-    final controller = TextEditingController(text: _captions[path] ?? '');
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('图片说明'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 60,
-          decoration: const InputDecoration(hintText: '给图片加一句小字说明…'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+    final text = await showInputDialog(
+      context,
+      title: '图片说明',
+      initialValue: _captions[path] ?? '',
+      hintText: '给图片加一句小字说明…',
+      maxLength: 60,
     );
-    controller.dispose(); // 对话框已关闭，释放临时 controller
-    if (!mounted) return;
-    if (text == null || text.isEmpty) {
+    if (!mounted || text == null) return; // 取消 → 保持原说明不变
+    if (text.isEmpty) {
       _captions.remove(path);
     } else {
       _captions[path] = text;

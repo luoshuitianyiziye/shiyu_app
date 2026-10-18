@@ -7,7 +7,7 @@ import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
-import '../../../core/notifications/notification_service.dart';
+import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import '../../growth/data/ranks.dart';
@@ -205,14 +205,11 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   }) async {
     final db = ref.read(databaseProvider);
     await db.uncompleteTaskById(task.id);
-    final st = task.startTime;
-    if (st != null && st.isAfter(DateTime.now())) {
-      await NotificationService.instance.scheduleTaskReminder(
-        taskId: task.id,
-        title: task.title,
-        at: st,
-      );
-    }
+    await ReminderCoordinator.syncTaskReminder(
+      taskId: task.id,
+      title: task.title,
+      startTime: task.startTime,
+    );
     ref.invalidate(statsSnapshotProvider);
     if (syncEndOfDay) {
       await rescheduleEndOfDay(db);
@@ -567,7 +564,7 @@ class _TaskTile extends ConsumerWidget {
           _recentlyCompleted.clear();
         }
         final result = await db.completeTaskAndAwardXp(task);
-        await NotificationService.instance.cancelTaskReminder(task.id);
+        await ReminderCoordinator.cancelTaskReminder(task.id);
         ref.invalidate(statsSnapshotProvider);
         // 未完成数变化 → 更新收尾提醒
         await rescheduleEndOfDay(db);
@@ -590,14 +587,11 @@ class _TaskTile extends ConsumerWidget {
         // 取消完成：恢复未完成状态，并按开始时间重建提醒
         // （完成时已取消的提醒在此恢复，保证取消/重建对称）
         await db.uncompleteTask(task);
-        final st = task.startTime;
-        if (st != null && st.isAfter(DateTime.now())) {
-          await NotificationService.instance.scheduleTaskReminder(
-            taskId: task.id,
-            title: task.title,
-            at: st,
-          );
-        }
+        await ReminderCoordinator.syncTaskReminder(
+          taskId: task.id,
+          title: task.title,
+          startTime: task.startTime,
+        );
         ref.invalidate(statsSnapshotProvider);
         await rescheduleEndOfDay(db);
       }
@@ -624,7 +618,7 @@ class _TaskTile extends ConsumerWidget {
     if (ok != true) return;
     final db = ref.read(databaseProvider);
     await db.softDeleteTask(task.id);
-    await NotificationService.instance.cancelTaskReminder(task.id);
+    await ReminderCoordinator.cancelTaskReminder(task.id);
     ref.invalidate(statsSnapshotProvider);
     await rescheduleEndOfDay(db);
   }

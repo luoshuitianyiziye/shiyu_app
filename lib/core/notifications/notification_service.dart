@@ -3,31 +3,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../db/database.dart';
-
-/// 任务列表变化（新增/完成/恢复/删除）后调用：用最新未完成数重建每日收尾提醒。
-///
-/// 并发安全：连续快速变化（如连点完成多个任务）时多个调用交错执行，
-/// 用单调递增版本号做 last-write-wins —— 只有最新一次调用的结果会被保留，
-/// 旧的（可能读取到过期计数）结果会被丢弃。
-Future<void> rescheduleEndOfDay(AppDatabase db) async {
-  final version = ++_endOfDayVersion;
-  final s = await db.ensureSettings();
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final count = await db.unfinishedCountForDate(today);
-  // 已有更新的重建请求 → 本次结果过期，丢弃（避免旧计数覆盖新计数）
-  if (version != _endOfDayVersion) return;
-  await NotificationService.instance.scheduleDailyEndOfDay(
-    hour: s.endOfDayHour,
-    minute: s.endOfDayMinute,
-    unfinishedCount: count,
-  );
-}
-
-/// 收尾提醒重建版本号（last-write-wins 串行化用）
-int _endOfDayVersion = 0;
-
 /// 本地通知服务：任务开始提醒 / 事件当天提醒 / 每日收尾提醒
 ///
 /// 平台注意：
@@ -142,6 +117,13 @@ class NotificationService {
       notificationDetails: _taskDetails('pomodoro', '番茄钟'),
     );
   }
+
+  /// 番茄专注完成提醒（固定 id，调用方无需关心编号）
+  Future<void> showPomodoroDone() => showNow(
+        id: 888001,
+        title: '专注完成',
+        body: '干得漂亮！休息一下吧（+5 XP）',
+      );
 
   /// 每日收尾提醒：每天固定时间提醒未完成任务（[unfinishedCount] 实时数量）
   Future<void> scheduleDailyEndOfDay({

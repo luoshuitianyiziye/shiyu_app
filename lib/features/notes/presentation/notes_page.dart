@@ -253,26 +253,12 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
   }
 
   Future<void> _rename(NoteCategoryRow c) async {
-    final controller = TextEditingController(text: c.name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('重命名分类'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '新名称'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+    final newName = await showInputDialog(
+      context,
+      title: '重命名分类',
+      initialValue: c.name,
+      hintText: '新名称',
     );
-    controller.dispose(); // 对话框已关闭，释放临时 controller
     if (newName != null && newName.isNotEmpty && mounted) {
       await ref.read(databaseProvider).updateNoteCategory(c.id, name: newName);
     }

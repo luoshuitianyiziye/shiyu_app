@@ -10,6 +10,7 @@ import 'app/providers.dart';
 import 'core/db/database.dart';
 import 'core/db/db_providers.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/notifications/reminder_coordinator.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,9 +37,12 @@ Future<void> main() async {
   final today = DateTime(now.year, now.month, now.day);
   final dayTasks = await db.tasksForDate(today);
   for (final t in dayTasks) {
-    if (rolledIds.contains(t.id) && t.startTime != null) {
-      await NotificationService.instance
-          .scheduleTaskReminder(taskId: t.id, title: t.title, at: t.startTime!);
+    if (rolledIds.contains(t.id)) {
+      await ReminderCoordinator.syncTaskReminder(
+        taskId: t.id,
+        title: t.title,
+        startTime: t.startTime,
+      );
     }
   }
 
@@ -72,9 +76,12 @@ Future<void> main() async {
       final ids = await db.rollRepeatingTasks();
       final dayTasks = await db.tasksForDate(d);
       for (final t in dayTasks) {
-        if (ids.contains(t.id) && t.startTime != null) {
-          await NotificationService.instance
-              .scheduleTaskReminder(taskId: t.id, title: t.title, at: t.startTime!);
+        if (ids.contains(t.id)) {
+          await ReminderCoordinator.syncTaskReminder(
+            taskId: t.id,
+            title: t.title,
+            startTime: t.startTime,
+          );
         }
       }
       await rescheduleEndOfDay(db);

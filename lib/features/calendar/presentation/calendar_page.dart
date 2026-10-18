@@ -7,7 +7,7 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/notification_service.dart';
+import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import 'add_event_sheet.dart';
@@ -281,7 +281,7 @@ class _EventCard extends ConsumerWidget {
     );
     if (ok != true) return;
     await ref.read(databaseProvider).softDeleteEvent(event.id);
-    await NotificationService.instance.cancelEventReminder(event.id);
+    await ReminderCoordinator.cancelEventReminder(event.id);
   }
 
   @override
@@ -376,7 +376,7 @@ class _CountdownCard extends ConsumerWidget {
     );
     if (ok != true) return;
     await ref.read(databaseProvider).softDeleteEvent(event.id);
-    await NotificationService.instance.cancelEventReminder(event.id);
+    await ReminderCoordinator.cancelEventReminder(event.id);
   }
 
   /// 点击倒数日卡片：弹出详情小窗（事件 + 倒数日期）

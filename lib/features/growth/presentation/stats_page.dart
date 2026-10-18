@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
-
-const _weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+import '../../../core/utils/format.dart';
 
 /// 专注统计页：累计 / 本周 / 最近 7 天柱状图 / 今日完成率
 class StatsPage extends ConsumerWidget {
@@ -292,7 +291,7 @@ class _SevenDayChart extends StatelessWidget {
   }
 
   static String _dayLabel(DateTime day) {
-    if (day.month == DateTime.now().month) return '周${_weekdayNames[day.weekday - 1]}';
+    if (day.month == DateTime.now().month) return '周${kWeekdayNames[day.weekday - 1]}';
     return '${day.month}/${day.day}';
   }
 }

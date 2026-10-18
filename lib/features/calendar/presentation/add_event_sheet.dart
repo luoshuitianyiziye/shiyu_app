@@ -8,7 +8,7 @@ import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/notification_service.dart';
+import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/remind_calc.dart';
 
@@ -213,8 +213,7 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
           updatedAt: Value(DateTime.now()),
         ),
       );
-      await NotificationService.instance.cancelEventReminder(id);
-      await NotificationService.instance.scheduleEventReminder(
+      await ReminderCoordinator.syncEventReminder(
         eventId: id,
         title: title,
         at: _remindAt(_date, timeDateTime, _remindMinutes),
@@ -240,7 +239,7 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
     );
 
     // 事件当天提醒：有具体时间 → 提前 remindMinutes；全天事件 → 09:00 提前 remindMinutes
-    await NotificationService.instance.scheduleEventReminder(
+    await ReminderCoordinator.syncEventReminder(
       eventId: id,
       title: title,
       at: _remindAt(_date, timeDateTime, _remindMinutes),

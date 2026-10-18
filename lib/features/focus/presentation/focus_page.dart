@@ -150,11 +150,7 @@ class _FocusPageState extends ConsumerState<FocusPage> {
         await ref.read(databaseProvider).awardPomodoroXp(
           focusMinutes: _total.inMinutes,
         );
-        await NotificationService.instance.showNow(
-          id: 888001,
-          title: '专注完成',
-          body: '干得漂亮！休息一下吧（+5 XP）',
-        );
+        await NotificationService.instance.showPomodoroDone();
         ref.invalidate(statsSnapshotProvider);
         // 轮次只在真实完成时推进（跳过不占轮次、不推进长休节奏）
         setState(() => _rounds += 1);

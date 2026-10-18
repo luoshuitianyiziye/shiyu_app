@@ -36,3 +36,45 @@ Future<bool> showConfirmDialog(
   );
   return result ?? false;
 }
+
+/// 统一的单行文字输入对话框（重命名分类 / 图片说明等）。
+///
+/// 返回用户输入（去首尾空白）；取消/点外部关闭返回 null。
+/// 空字符串 ≠ null：表示用户点了确认但未输入内容，由调用方决定如何处理。
+Future<String?> showInputDialog(
+  BuildContext context, {
+  required String title,
+  String? initialValue,
+  String hintText = '',
+  int? maxLength,
+  String confirmText = '保存',
+}) async {
+  final controller = TextEditingController(text: initialValue ?? '');
+  try {
+    return await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: maxLength,
+          decoration: InputDecoration(hintText: hintText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(confirmText),
+          ),
+        ],
+      ),
+    );
+  } finally {
+    // 对话框关闭后释放临时 controller
+    controller.dispose();
+  }
+}

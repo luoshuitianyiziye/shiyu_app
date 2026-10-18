@@ -7,7 +7,7 @@ import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/notification_service.dart';
+import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/format.dart';
 import '../data/quadrants.dart';
 
@@ -124,14 +124,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           updatedAt: Value(DateTime.now()),
         ),
       );
-      await NotificationService.instance.cancelTaskReminder(widget.task!.id);
-      if (startDateTime != null) {
-        await NotificationService.instance.scheduleTaskReminder(
-          taskId: widget.task!.id,
-          title: title,
-          at: startDateTime,
-        );
-      }
+      await ReminderCoordinator.syncTaskReminder(
+        taskId: widget.task!.id,
+        title: title,
+        startTime: startDateTime,
+      );
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -160,10 +157,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     await rescheduleEndOfDay(db);
 
     // 设置开始时段 → 到时提醒
-    if (startDateTime != null) {
-      await NotificationService.instance
-          .scheduleTaskReminder(taskId: id, title: title, at: startDateTime);
-    }
+    await ReminderCoordinator.syncTaskReminder(
+      taskId: id,
+      title: title,
+      startTime: startDateTime,
+    );
 
     if (mounted) {
       Navigator.of(context).pop();
@@ -274,7 +272,8 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                 prefixIcon: Icon(Icons.task_alt_outlined),
               ),
               textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _save(),            ),
+              onSubmitted: (_) => _save(),
+            ),
             const SizedBox(height: 20),
             Text('四象限', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
             const SizedBox(height: 8),

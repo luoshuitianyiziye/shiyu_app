@@ -150,11 +150,14 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? driftDatabase(name: 'shiyu'));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
+        onCreate: (m) async {
+          await m.createAll();
+          await _createIndexes();
+        },
         onUpgrade: (m, from, to) async {
           // v1 → v2：新增笔记分类表 + 笔记分类字段
           if (from < 2) {
@@ -207,8 +210,28 @@ class AppDatabase extends _$AppDatabase {
           if (from < 7) {
             await m.addColumn(users, users.maxTasksDone);
           }
+          // v7 → v8：常用查询索引（日期过滤 / 笔记排序 / 番茄统计 / 重复滚动）
+          if (from < 8) {
+            await _createIndexes();
+          }
         },
       );
+
+  /// 常用查询索引（v8 起）。数据量小时收益不明显，但可避免长期使用后
+  /// 今日列表、笔记列表、收尾提醒计数、重复任务滚动退化为全表扫描。
+  static const List<String> _indexStatements = [
+    'CREATE INDEX IF NOT EXISTS idx_tasks_date ON tasks (date);',
+    'CREATE INDEX IF NOT EXISTS idx_tasks_repeat ON tasks (repeat_rule, date);',
+    'CREATE INDEX IF NOT EXISTS idx_events_date ON events (date);',
+    'CREATE INDEX IF NOT EXISTS idx_notes_updated ON notes (deleted, updated_at);',
+    'CREATE INDEX IF NOT EXISTS idx_pomodoro_completed ON pomodoro_sessions (completed_at);',
+  ];
+
+  Future<void> _createIndexes() async {
+    for (final sql in _indexStatements) {
+      await customStatement(sql);
+    }
+  }
 
   // ---------- 用户 ----------
 
