@@ -71,6 +71,13 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
   final TextEditingController _searchController = TextEditingController();
   int _searchCursor = 0; // 上次命中的起始 offset（循环查找用）
 
+  /// 浏览态轻点检测：Listener 不拦截滚动/选择手势，只在轻点时进入编辑
+  Offset? _pointerDownPosition;
+  DateTime? _pointerDownAt;
+
+  /// 键盘高度跟踪：编辑态键盘收起（返回键隐藏键盘等）自动回到浏览模式
+  double _lastKeyboardHeight = 0;
+
   /// 定位到命中位置用（QuillRawEditorState.bringIntoView 滚动到光标）
   final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
 
@@ -95,7 +102,23 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
     _quill.addListener(_onQuillChanged);
   }
 
-  /// 点击浏览态内容 → 进入编辑模式（工具栏出现、键盘弹出）
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 编辑态下键盘收起（系统返回键隐藏键盘等）→ 自动回到浏览模式
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    if (_lastKeyboardHeight > 0 &&
+        keyboardHeight == 0 &&
+        !_browsing &&
+        !_searching) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _exitEditMode();
+      });
+    }
+    _lastKeyboardHeight = keyboardHeight;
+  }
+
+  /// 点击/轻触浏览态正文 → 进入编辑模式（工具栏出现、键盘弹出）
   void _enterEditMode() {
     if (!_browsing) return;
     setState(() {
@@ -103,6 +126,37 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
       _quill.readOnly = false;
     });
     _focusNode.requestFocus();
+  }
+
+  /// 退出编辑回到浏览模式：收起键盘、只读，内容保留在编辑器中（未保存修改不落库）
+  void _exitEditMode() {
+    if (_browsing) return;
+    _focusNode.unfocus();
+    setState(() {
+      _browsing = true;
+      _quill.readOnly = true;
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (!_browsing) return;
+    _pointerDownPosition = event.position;
+    _pointerDownAt = DateTime.now();
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (!_browsing) return;
+    final down = _pointerDownPosition;
+    final at = _pointerDownAt;
+    _pointerDownPosition = null;
+    _pointerDownAt = null;
+    if (down == null || at == null) return;
+    // 轻点（位移小 + 按压短）才进入编辑；拖动滚动/长按选字不触发
+    final moved = (event.position - down).distance;
+    final held = DateTime.now().difference(at);
+    if (moved < 10 && held < const Duration(milliseconds: 400)) {
+      _enterEditMode();
+    }
   }
 
   /// 开始页内搜索
@@ -983,36 +1037,30 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
             _buildCategoryBar(),
             const Divider(height: 1),
             Expanded(
-              child: Stack(
-                children: [
-                  QuillEditor(
-                    controller: _quill,
-                    focusNode: _focusNode,
-                    scrollController: _scrollController,
-                    config: QuillEditorConfig(
-                      editorKey: _editorKey,
-                      placeholder: '写点什么…',
-                      autoFocus: !_browsing,
-                      expands: true,
-                      padding: const EdgeInsets.all(16),
-                      // 本地图片渲染：点击可预览 / 删除
-                      embedBuilders: [
-                        LocalImageEmbedBuilder(
-                          onTap: _onImageTap,
-                          captionFor: (p) => _captions[p],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // 浏览态覆盖点击层：点击正文任意处进入编辑模式
-                  if (_browsing)
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _enterEditMode,
+              // Listener 不参与手势竞技场：浏览态可正常滚动/选择文字，
+              // 仅在轻点时进入编辑（避免覆盖层拦截滚动）
+              child: Listener(
+                onPointerDown: _onPointerDown,
+                onPointerUp: _onPointerUp,
+                child: QuillEditor(
+                  controller: _quill,
+                  focusNode: _focusNode,
+                  scrollController: _scrollController,
+                  config: QuillEditorConfig(
+                    editorKey: _editorKey,
+                    placeholder: '写点什么…',
+                    autoFocus: !_browsing,
+                    expands: true,
+                    padding: const EdgeInsets.all(16),
+                    // 本地图片渲染：点击可预览 / 删除
+                    embedBuilders: [
+                      LocalImageEmbedBuilder(
+                        onTap: _onImageTap,
+                        captionFor: (p) => _captions[p],
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
             if (!_browsing) _buildToolbar(),
