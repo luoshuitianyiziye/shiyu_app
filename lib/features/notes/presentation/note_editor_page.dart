@@ -62,11 +62,24 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
   int? _categoryId; // 当前笔记分类
   Map<String, String> _captions = {}; // 图片路径 → 小字说明
 
+  /// 浏览模式：已有笔记默认只读预览，点击正文/标题后才进入编辑。
+  /// 新建笔记直接进入编辑（无内容可浏览）。
+  bool _browsing = false;
+
+  /// 页内搜索状态：AppBar 标题变为搜索框，回车/「下一个」循环定位匹配处
+  bool _searching = false;
+  final TextEditingController _searchController = TextEditingController();
+  int _searchCursor = 0; // 上次命中的起始 offset（循环查找用）
+
+  /// 定位到命中位置用（QuillRawEditorState.bringIntoView 滚动到光标）
+  final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+
   bool get _isNew => widget.existing == null;
 
   @override
   void initState() {
     super.initState();
+    _browsing = !_isNew;
     _titleController = TextEditingController(text: widget.existing?.title ?? '');
     _categoryId = widget.existing?.categoryId;
     _captions = _captionsFromJson(widget.existing?.imageCaptions ?? '');
@@ -76,9 +89,94 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
           ? Document()
           : _documentFromJson(body),
       selection: const TextSelection.collapsed(offset: 0),
+      readOnly: _browsing,
     );
     // 工具栏按钮状态随光标变化刷新（激活高亮）
     _quill.addListener(_onQuillChanged);
+  }
+
+  /// 点击浏览态内容 → 进入编辑模式（工具栏出现、键盘弹出）
+  void _enterEditMode() {
+    if (!_browsing) return;
+    setState(() {
+      _browsing = false;
+      _quill.readOnly = false;
+    });
+    _focusNode.requestFocus();
+  }
+
+  /// 开始页内搜索
+  void _startSearch() {
+    setState(() {
+      _searching = true;
+      _searchCursor = 0;
+    });
+  }
+
+  /// 关闭页内搜索
+  void _stopSearch() {
+    setState(() {
+      _searching = false;
+      _searchController.clear();
+      _searchCursor = 0;
+    });
+  }
+
+  /// 查找下一个匹配并定位：设置选中高亮 + 滚动到命中位置。
+  /// 找不到匹配时从头再找（循环），仍找不到则提示。
+  void _searchNext() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+    final plain = _quill.document.toPlainText();
+    if (plain.isEmpty) {
+      _showSearchToast('笔记为空，没有可搜索的内容');
+      return;
+    }
+    final lower = plain.toLowerCase();
+    final lowerQuery = query.toLowerCase();
+    var index = lower.indexOf(lowerQuery, _searchCursor);
+    if (index < 0) {
+      // 已到末尾 → 从头找（循环定位）
+      index = lower.indexOf(lowerQuery);
+    }
+    if (index < 0) {
+      _showSearchToast('没有找到「$query」');
+      return;
+    }
+    _searchCursor = index + query.length;
+    _locateInDocument(index, query.length);
+  }
+
+  /// 在文档中定位到 [index] 处的 [length] 个字符：
+  /// 选中高亮（只读/编辑模式都可见）+ 滚动到该位置。
+  void _locateInDocument(int index, int length) {
+    final doc = _quill.document;
+    final start = index.clamp(0, doc.length);
+    final end = (index + length).clamp(0, doc.length);
+    _quill.updateSelection(
+      TextSelection(baseOffset: start, extentOffset: end),
+      ChangeSource.local,
+    );
+    // 只读模式下编辑器不会自动滚动到选区：用编辑器状态把光标位置带入可视区
+    final state = _editorKey.currentState;
+    if (state is QuillRawEditorState) {
+      state.bringIntoView(TextPosition(offset: start));
+    } else {
+      // 兜底：按文档比例粗略滚动
+      _scrollController.animateTo(
+        (_scrollController.position.maxScrollExtent *
+                (start / doc.length).clamp(0.0, 1.0)),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _showSearchToast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
   }
 
   Map<String, String> _captionsFromJson(String s) {
@@ -172,6 +270,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
   @override
   void dispose() {
     _checklistSyncTimer?.cancel();
+    _searchController.dispose();
     _quill.removeListener(_onQuillChanged);
     _titleController.dispose();
     _quill.dispose();
@@ -795,61 +894,128 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isNew ? '新笔记' : '编辑笔记'),
-        actions: [
-          IconButton(
-            onPressed: _copyPlainText,
-            icon: const Icon(Icons.copy_all_outlined),
-            tooltip: '复制全文',
-          ),
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('保存'),
-          ),
-        ],
+        title: _searching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: TextStyle(fontSize: 16, color: palette.textPrimary),
+                decoration: const InputDecoration(
+                  hintText: '搜索笔记内容，回车定位',
+                  isDense: true,
+                  border: InputBorder.none,
+                ),
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _searchNext(),
+              )
+            : Text(_isNew ? '新笔记' : (_browsing ? '笔记' : '编辑笔记')),
+        actions: _searching
+            ? [
+                IconButton(
+                  onPressed: _searchNext,
+                  icon: const Icon(Icons.keyboard_return),
+                  tooltip: '下一个匹配',
+                ),
+                IconButton(
+                  onPressed: _stopSearch,
+                  icon: const Icon(Icons.close),
+                  tooltip: '关闭搜索',
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: _startSearch,
+                  icon: const Icon(Icons.search),
+                  tooltip: '搜索内容',
+                ),
+                IconButton(
+                  onPressed: _copyPlainText,
+                  icon: const Icon(Icons.copy_all_outlined),
+                  tooltip: '复制全文',
+                ),
+                if (!_browsing)
+                  TextButton(
+                    onPressed: _saving ? null : _save,
+                    child: const Text('保存'),
+                  ),
+              ],
       ),
       body: SafeArea(
         child: Column(
           children: [
+            // 标题：浏览态只读展示（点击进入编辑），编辑态可编辑
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: TextField(
-                controller: _titleController,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: palette.textPrimary,
-                ),
-                decoration: const InputDecoration(
-                  hintText: '标题',
-                  filled: false,
-                  border: InputBorder.none,
-                ),
-              ),
+              child: _browsing
+                  ? InkWell(
+                      onTap: _enterEditMode,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            _titleController.text.trim().isEmpty
+                                ? '（无标题）'
+                                : _titleController.text,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: palette.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                  : TextField(
+                      controller: _titleController,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: palette.textPrimary,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: '标题',
+                        filled: false,
+                        border: InputBorder.none,
+                      ),
+                    ),
             ),
             _buildCategoryBar(),
             const Divider(height: 1),
             Expanded(
-              child: QuillEditor(
-                controller: _quill,
-                focusNode: _focusNode,
-                scrollController: _scrollController,
-                config: QuillEditorConfig(
-                  placeholder: '写点什么…',
-                  autoFocus: true,
-                  expands: true,
-                  padding: const EdgeInsets.all(16),
-                  // 本地图片渲染：点击可预览 / 删除
-                  embedBuilders: [
-                    LocalImageEmbedBuilder(
-                      onTap: _onImageTap,
-                      captionFor: (p) => _captions[p],
+              child: Stack(
+                children: [
+                  QuillEditor(
+                    controller: _quill,
+                    focusNode: _focusNode,
+                    scrollController: _scrollController,
+                    config: QuillEditorConfig(
+                      editorKey: _editorKey,
+                      placeholder: '写点什么…',
+                      autoFocus: !_browsing,
+                      expands: true,
+                      padding: const EdgeInsets.all(16),
+                      // 本地图片渲染：点击可预览 / 删除
+                      embedBuilders: [
+                        LocalImageEmbedBuilder(
+                          onTap: _onImageTap,
+                          captionFor: (p) => _captions[p],
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  // 浏览态覆盖点击层：点击正文任意处进入编辑模式
+                  if (_browsing)
+                    Positioned.fill(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _enterEditMode,
+                      ),
+                    ),
+                ],
               ),
             ),
-            _buildToolbar(),
+            if (!_browsing) _buildToolbar(),
           ],
         ),
       ),
