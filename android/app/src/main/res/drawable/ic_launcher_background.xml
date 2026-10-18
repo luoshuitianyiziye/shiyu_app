@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 时屿 · 日程笔记 —— 应用图标背景（取图标主图边缘色，与自适应图标前景融合） -->
+<!-- 时屿 · 日程笔记 —— 应用图标背景（取图标裁切区域边缘色，与前景融合） -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#F2D1B6" />
+    <solid android:color="#F1C29D" />
 </shape>
