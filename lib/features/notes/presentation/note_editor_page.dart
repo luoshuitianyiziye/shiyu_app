@@ -53,7 +53,8 @@ class NoteEditorPage extends ConsumerStatefulWidget {
   ConsumerState<NoteEditorPage> createState() => _NoteEditorPageState();
 }
 
-class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
+class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
+    with WidgetsBindingObserver {
   late final TextEditingController _titleController;
   late final QuillController _quill;
   final FocusNode _focusNode = FocusNode();
@@ -100,22 +101,49 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
     );
     // 工具栏按钮状态随光标变化刷新（激活高亮）
     _quill.addListener(_onQuillChanged);
+    // 键盘收起检测：窗口 metrics 变化（最可靠）+ 焦点丢失（兜底）
+    WidgetsBinding.instance.addObserver(this);
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didChangeMetrics() {
+    // 键盘弹出/收起会改变窗口 insets：这里读取物理像素并换算成逻辑像素
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final height = view.viewInsets.bottom / view.devicePixelRatio;
+    _handleKeyboardHeight(height);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 编辑态下键盘收起（系统返回键隐藏键盘等）→ 自动回到浏览模式
-    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    // MediaQuery 变化时同步一次（与 didChangeMetrics 双保险，幂等）
+    _handleKeyboardHeight(MediaQuery.of(context).viewInsets.bottom);
+  }
+
+  /// 编辑态下键盘收起 → 自动回到浏览模式。
+  /// [height] 为键盘高度（逻辑像素）；从 >0 变为 0 视为收起。
+  void _handleKeyboardHeight(double height) {
     if (_lastKeyboardHeight > 0 &&
-        keyboardHeight == 0 &&
+        height <= 0 &&
         !_browsing &&
         !_searching) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _exitEditMode();
       });
     }
-    _lastKeyboardHeight = keyboardHeight;
+    _lastKeyboardHeight = height;
+  }
+
+  /// 焦点丢失兜底：编辑态焦点被夺走（且非搜索态）时回到浏览模式。
+  /// 延迟检查，避免搜索框切换焦点瞬间误退出。
+  void _onFocusChanged() {
+    if (_browsing || _focusNode.hasFocus) return;
+    Future<void>.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted || _browsing || _searching) return;
+      if (_focusNode.hasFocus) return;
+      _exitEditMode();
+    });
   }
 
   /// 点击/轻触浏览态正文 → 进入编辑模式（工具栏出现、键盘弹出）
@@ -323,6 +351,8 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _focusNode.removeListener(_onFocusChanged);
     _checklistSyncTimer?.cancel();
     _searchController.dispose();
     _quill.removeListener(_onQuillChanged);
@@ -981,16 +1011,23 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage> {
                   icon: const Icon(Icons.search),
                   tooltip: '搜索内容',
                 ),
-                IconButton(
-                  onPressed: _copyPlainText,
-                  icon: const Icon(Icons.copy_all_outlined),
-                  tooltip: '复制全文',
-                ),
-                if (!_browsing)
+                if (_browsing)
+                  IconButton(
+                    onPressed: _copyPlainText,
+                    icon: const Icon(Icons.copy_all_outlined),
+                    tooltip: '复制全文',
+                  ),
+                // 编辑态：完成（回到浏览）+ 保存（落库并返回列表）
+                if (!_browsing) ...[
+                  TextButton(
+                    onPressed: _exitEditMode,
+                    child: const Text('完成'),
+                  ),
                   TextButton(
                     onPressed: _saving ? null : _save,
                     child: const Text('保存'),
                   ),
+                ],
               ],
       ),
       body: SafeArea(
