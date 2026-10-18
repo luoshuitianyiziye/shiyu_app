@@ -150,7 +150,7 @@ class AppDatabase extends _$AppDatabase {
       : super(executor ?? driftDatabase(name: 'shiyu'));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -213,6 +213,33 @@ class AppDatabase extends _$AppDatabase {
           // v7 → v8：常用查询索引（日期过滤 / 笔记排序 / 番茄统计 / 重复滚动）
           if (from < 8) {
             await _createIndexes();
+          }
+          // v8 → v9：清理旧版「每日复制副本」逻辑产生的重复任务副本。
+          // 这些副本（repeatRule='none'、与仍在重复的任务同标题）只是历史
+          // bug 产物，没有展示入口，留在库里只会让今日页出现重复任务。
+          if (from < 9) {
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            final repeatTasks = await (select(tasks)
+                  ..where((t) =>
+                      t.repeatRule.isNotValue('none') & t.deleted.equals(false)))
+                .get();
+            final titles = repeatTasks.map((t) => t.title).toSet();
+            if (titles.isNotEmpty) {
+              final copies = await (select(tasks)
+                    ..where((t) =>
+                        t.repeatRule.equals('none') &
+                        t.deleted.equals(false) &
+                        t.title.isIn(titles)))
+                  .get();
+              final staleIds = copies
+                  .where((c) => !c.date.isAfter(today))
+                  .map((c) => c.id)
+                  .toList();
+              if (staleIds.isNotEmpty) {
+                await (delete(tasks)..where((t) => t.id.isIn(staleIds))).go();
+              }
+            }
           }
         },
       );
@@ -449,26 +476,31 @@ class AppDatabase extends _$AppDatabase {
     await (delete(tasks)..where((t) => t.id.isIn(ids))).go();
   }
 
-  /// 每日滚动：把「每天/工作日/每周」重复任务复制到今天。
-  /// 幂等：模板任务用 [Tasks.lastRepeatedDate] 记录最近一次滚动，同一天不重复复制。
-  /// 整个「查询模板 + 去重判断 + 插入副本 + 更新标记」在一个事务内完成，
-  /// 保证『判断-插入-标记』原子化，进程中断不会重复复制。
-  /// 返回今天新生成的重复任务 id 列表（调用方据此安排开始提醒）。
+  /// 每日滚动（单条模型）：重复任务**不复制**，只把「活」记录推进/复位到今天。
+  ///
+  /// 规则（跨天首次调用时生效，整个「查询 + 推进 + 标记」在一个事务内完成）：
+  /// - 昨天未完成 → 日期推进到今天，保持未完成（仍留在正常栏）；
+  /// - 昨天已完成 → 复位为未完成（从已完成栏回到正常栏），[xpAwarded] 清零
+  ///   （新的一天重新结算；当天内「完成→取消→再完成」仍由 xpAwarded 防刷）；
+  /// - 工作日/每周规则：非匹配日不推进（任务停留在最近一次匹配日）。
+  ///
+  /// 幂等：推进后 date = today，且用 [Tasks.lastRepeatedDate] 做当日去重。
+  /// 返回今天被推进的任务 id（调用方据此重建开始提醒）。
   Future<List<int>> rollRepeatingTasks() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final created = <int>[];
+    final rolled = <int>[];
 
     await transaction(() async {
-      final templates = await (select(tasks)
+      final active = await (select(tasks)
             ..where((t) =>
                 t.deleted.equals(false) &
                 t.repeatRule.isNotValue('none') &
                 t.date.isSmallerThanValue(today)))
           .get();
 
-      for (final t in templates) {
-        // 今天已滚动过 → 跳过
+      for (final t in active) {
+        // 今天已推进过 → 跳过（防御并发/重复调用）
         if (t.lastRepeatedDate != null) {
           final last = t.lastRepeatedDate!;
           if (last.year == today.year &&
@@ -477,41 +509,37 @@ class AppDatabase extends _$AppDatabase {
             continue;
           }
         }
-        // 工作日规则：周六日不生成
+        // 工作日规则：周六日不推进
         if (t.repeatRule == 'weekdays' && today.weekday >= 6) continue;
-        // 每周规则：只在原星期几生成
+        // 每周规则：只在原星期几推进
         if (t.repeatRule == 'weekly' && today.weekday != t.date.weekday) continue;
 
+        // 已完成 → 次日复位为未完成（回到正常栏）；未完成 → 保持未完成。
+        // xpAwarded 清零：新的一天重新结算，当天内防刷不受影响。
         final startTime = t.startTime == null
             ? null
             : DateTime(today.year, today.month, today.day,
                 t.startTime!.hour, t.startTime!.minute);
-        // endTime 同样按 today 重建，避免副本内 start/end 跨日期不一致
         final endTime = t.endTime == null
             ? null
             : DateTime(today.year, today.month, today.day,
                 t.endTime!.hour, t.endTime!.minute);
-        final id = await into(tasks).insert(
-          TasksCompanion.insert(
-            title: t.title,
-            date: today,
-            quadrant: Value(t.quadrant),
+        await (update(tasks)..where((x) => x.id.equals(t.id))).write(
+          TasksCompanion(
+            date: Value(today),
             startTime: Value(startTime),
             endTime: Value(endTime),
-            difficulty: Value(t.difficulty),
-            repeatRule: const Value('none'), // 副本不再重复
             isDone: const Value(false),
-            deleted: const Value(false),
-            sort: Value(t.sort),
+            doneAt: const Value(null),
+            xpAwarded: const Value(0),
+            lastRepeatedDate: Value(now),
+            updatedAt: Value(now),
           ),
         );
-        created.add(id);
-        await (update(tasks)..where((x) => x.id.equals(t.id))).write(
-          TasksCompanion(lastRepeatedDate: Value(now)),
-        );
+        rolled.add(t.id);
       }
     });
-    return created;
+    return rolled;
   }
 
   /// 完成一个番茄专注：+XP 并记录流水与专注记录（[focusMinutes] 为本次实际专注分钟）

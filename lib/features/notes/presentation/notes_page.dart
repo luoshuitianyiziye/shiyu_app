@@ -14,6 +14,7 @@ import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import '../data/note_image_store.dart';
+import 'import_text_sheet.dart';
 import 'note_editor_page.dart';
 
 /// 笔记列表：搜索 / 分类筛选 / 置顶 / 图片缩略 / 左滑删除
@@ -35,7 +36,16 @@ class _NotesPageState extends ConsumerState<NotesPage> {
     final categoriesAsync = ref.watch(noteCategoriesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('笔记')),
+      appBar: AppBar(
+        title: const Text('笔记'),
+        actions: [
+          IconButton(
+            onPressed: () => showImportTextSheet(context),
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: '导入文本',
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         heroTag: null, // 多页 FAB 共存（indexedStack），禁用 hero 动画避免标签冲突
         onPressed: () => _openEditor(),
@@ -102,6 +112,7 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                   itemBuilder: (context, i) => _NoteCard(
                     note: filtered[i],
                     category: _categoryName(categoriesAsync.value ?? const [], filtered[i].categoryId),
+                    highlightQuery: _query,
                     onTap: () => _openEditor(existing: filtered[i]),
                   ),
                 );
@@ -414,16 +425,79 @@ String _plainText(NoteRow note) {
 /// 纯文本解析缓存（轻量 LRU：超过 200 条清空重建）
 final Map<String, String> _plainTextCache = {};
 
+/// 截取命中关键词前后的上下文片段（搜索定位到具体条目用）
+String _matchSnippet(String text, String query) {
+  final idx = text.toLowerCase().indexOf(query.toLowerCase());
+  if (idx < 0) return text;
+  final start = (idx - 24).clamp(0, text.length);
+  final end = (idx + query.length + 48).clamp(0, text.length);
+  final prefix = start > 0 ? '…' : '';
+  final suffix = end < text.length ? '…' : '';
+  return '$prefix${text.substring(start, end)}$suffix';
+}
+
+/// 摘要文本：搜索时高亮命中的关键词
+class _SnippetText extends StatelessWidget {
+  const _SnippetText({
+    required this.text,
+    required this.query,
+    required this.style,
+    required this.highlightColor,
+  });
+
+  final String text;
+  final String query;
+  final TextStyle style;
+  final Color highlightColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final idx = query.isEmpty
+        ? -1
+        : text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx < 0) {
+      return Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: text.substring(0, idx)),
+          TextSpan(
+            text: text.substring(idx, idx + query.length),
+            style: style.copyWith(
+              color: highlightColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextSpan(text: text.substring(idx + query.length)),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    );
+  }
+}
+
 class _NoteCard extends ConsumerWidget {
   const _NoteCard({
     required this.note,
     required this.category,
     required this.onTap,
+    this.highlightQuery = '',
   });
 
   final NoteRow note;
   final String? category;
   final VoidCallback onTap;
+
+  /// 搜索关键词：正文命中时显示命中片段并高亮（定位到具体条目）
+  final String highlightQuery;
 
   List<String> _images() {
     // 优先从正文 Delta 提取（图片嵌入正文）；兼容旧版 images 字段
@@ -457,7 +531,11 @@ class _NoteCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final images = _images();
-    final snippet = _plainText(note).trim();
+    final plain = _plainText(note).trim();
+    final query = highlightQuery.trim();
+    final matched = query.isNotEmpty &&
+        plain.toLowerCase().contains(query.toLowerCase());
+    final snippet = matched ? _matchSnippet(plain, query) : plain;
     final dateStr = DateFormat('M月d日', 'zh_CN').format(note.updatedAt);
 
     return Padding(
@@ -523,11 +601,11 @@ class _NoteCard extends ConsumerWidget {
                       ),
                       if (snippet.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        Text(
-                          snippet,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        _SnippetText(
+                          text: snippet,
+                          query: matched ? query : '',
                           style: TextStyle(fontSize: 13, color: palette.textSecondary),
+                          highlightColor: palette.primaryDark,
                         ),
                       ],
                       const SizedBox(height: 6),

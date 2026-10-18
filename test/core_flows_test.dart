@@ -4,6 +4,8 @@
 // 1. 完成任务 → XP 结算 + 等级/段位推进（含防重复结算）
 // 2. 重复任务每日滚动（每天/工作日/每周规则）
 // 3. 事件提前提醒时刻计算（提前提醒 + 已过时刻自动修正）
+import 'dart:convert';
+
 import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shiyu_app/core/db/database.dart';
 import 'package:shiyu_app/core/utils/remind_calc.dart';
 import 'package:shiyu_app/features/growth/data/ranks.dart';
+import 'package:shiyu_app/features/notes/data/text_import.dart';
 
 void main() {
   late AppDatabase db;
@@ -131,13 +134,13 @@ void main() {
     });
   });
 
-  group('重复任务每日滚动', () {
-    test('每天任务：昨天建立 → 今天生成副本，模板不再重复', () async {
+  group('重复任务每日滚动（单条模型）', () {
+    test('每天任务：昨天未完成 → 推进到今天、仍为未完成、不产生副本', () async {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
 
-      await db.addTask(
+      final id = await db.addTask(
         TasksCompanion.insert(
           title: '每日打卡',
           date: yesterday,
@@ -146,24 +149,85 @@ void main() {
         ),
       );
 
-      final created = await db.rollRepeatingTasks();
-      expect(created, isNotEmpty);
+      final rolled = await db.rollRepeatingTasks();
+      expect(rolled, contains(id));
 
       final todayTasks = await db.tasksForDate(today);
-      expect(todayTasks.where((t) => t.title == '每日打卡'), hasLength(1));
+      final matched = todayTasks.where((t) => t.title == '每日打卡').toList();
+      expect(matched, hasLength(1), reason: '不应隔天多生成副本');
+      final task = matched.first;
+      expect(task.id, id, reason: '推进的是同一条记录');
+      expect(task.isDone, isFalse);
+      expect(task.date, today);
+      expect(task.repeatRule, 'daily', reason: '重复标记保留在活记录上');
 
-      // 幂等：再次滚动不再生成
-      final created2 = await db.rollRepeatingTasks();
-      expect(created2, isEmpty);
+      // 幂等：再次推进不会重复
+      final rolled2 = await db.rollRepeatingTasks();
+      expect(rolled2, isEmpty);
     });
 
-    test('工作日任务：周六/周日不生成', () async {
+    test('每天任务：昨天已完成 → 次日复位为未完成（回到正常栏）', () async {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
-      // 找一个周六作为模板日期（模板必须早于今天才会滚动）
-      final saturday = _previousWeekday(DateTime(today.year, today.month, today.day), 6);
+      final yesterday = today.subtract(const Duration(days: 1));
 
-      await db.addTask(
+      final id = await db.addTask(
+        TasksCompanion.insert(
+          title: '完成后次日复位',
+          date: yesterday,
+          quadrant: const Value(2),
+          repeatRule: const Value('daily'),
+        ),
+      );
+      // 模拟昨天已完成（含 XP 结算标记）
+      await (db.update(db.tasks)..where((t) => t.id.equals(id))).write(
+        const TasksCompanion(
+          isDone: Value(true),
+          doneAt: Value(null),
+          xpAwarded: Value(10),
+        ),
+      );
+
+      final rolled = await db.rollRepeatingTasks();
+      expect(rolled, contains(id));
+
+      final task = (await db.tasksForDate(today)).firstWhere((t) => t.id == id);
+      expect(task.isDone, isFalse, reason: '已完成 → 次日从已完成栏回到正常栏');
+      expect(task.date, today);
+      expect(task.xpAwarded, 0, reason: '新的一天重新结算，当天防刷不受影响');
+    });
+
+    test('每天任务：连续多天未完成 → 仍只有一条、推进到今天', () async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final fiveDaysAgo = today.subtract(const Duration(days: 5));
+
+      final id = await db.addTask(
+        TasksCompanion.insert(
+          title: '跨多天未完成',
+          date: fiveDaysAgo,
+          quadrant: const Value(2),
+          repeatRule: const Value('daily'),
+        ),
+      );
+
+      await db.rollRepeatingTasks();
+      final task = (await db.tasksForDate(today)).firstWhere((t) => t.id == id);
+      expect(task.date, today);
+      expect(task.isDone, isFalse);
+      expect(
+        (await db.tasksForDate(today)).where((t) => t.title == '跨多天未完成'),
+        hasLength(1),
+      );
+    });
+
+    test('工作日任务：周六/周日不推进', () async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      // 找一个周六作为模板日期（模板必须早于今天才会被选中）
+      final saturday = _previousWeekday(today, 6);
+
+      final id = await db.addTask(
         TasksCompanion.insert(
           title: '工作日任务',
           date: saturday,
@@ -171,21 +235,20 @@ void main() {
           repeatRule: const Value('weekdays'),
         ),
       );
-      final created = await db.rollRepeatingTasks();
-      // 若今天是周六/周日则模板被跳过；否则正常生成
+      final rolled = await db.rollRepeatingTasks();
       if (today.weekday >= 6) {
-        expect(created, isEmpty);
+        expect(rolled, isEmpty, reason: '周末不推进');
       } else {
-        expect(created, isNotEmpty);
+        expect(rolled, contains(id));
       }
     });
 
-    test('每周任务：只在原星期几生成', () async {
+    test('每周任务：只在原星期几推进', () async {
       final now = DateTime.now();
       final today = DateTime(now.year, now.month, now.day);
       final lastWeek = today.subtract(const Duration(days: 7));
 
-      await db.addTask(
+      final id = await db.addTask(
         TasksCompanion.insert(
           title: '每周复盘',
           date: lastWeek,
@@ -194,11 +257,11 @@ void main() {
         ),
       );
 
-      final created = await db.rollRepeatingTasks();
+      final rolled = await db.rollRepeatingTasks();
       if (today.weekday == lastWeek.weekday) {
-        expect(created, isNotEmpty);
+        expect(rolled, contains(id));
       } else {
-        expect(created, isEmpty);
+        expect(rolled, isEmpty);
       }
     });
   });
@@ -261,6 +324,40 @@ void main() {
         now: DateTime(2026, 11, 5, 8, 0),
       );
       expect(remindAt, DateTime(2027, 1, 5, 0, 0));
+    });
+  });
+
+  group('导入文本自动切分', () {
+    test('无空行：每行一条', () {
+      expect(splitImportText('a\nb\nc'), ['a', 'b', 'c']);
+    });
+
+    test('含空行：按空行分段，段内换行保留', () {
+      expect(splitImportText('第一段\n第二行\n\n第二段'), ['第一段\n第二行', '第二段']);
+    });
+
+    test('分隔线视为条目边界（--- / ===）', () {
+      expect(splitImportText('账号：x\n---\n密码：y'), ['账号：x', '密码：y']);
+    });
+
+    test('空文本/全空白返回空列表', () {
+      expect(splitImportText('   \n  \n'), isEmpty);
+      expect(splitImportText(''), isEmpty);
+    });
+
+    test('buildEntriesBody 生成可解析的 Quill Delta（段落以换行结尾）', () {
+      final json = buildEntriesBody(['条目一', '条目二']);
+      final decoded = jsonDecode(json) as List;
+      expect(decoded, isNotEmpty);
+      expect(decoded.last['insert'], '\n'); // Quill 段落结束
+      expect(
+        decoded.map((op) => (op as Map)['insert']).join(),
+        contains('条目一'),
+      );
+      expect(
+        decoded.map((op) => (op as Map)['insert']).join(),
+        contains('条目二'),
+      );
     });
   });
 }

@@ -19,6 +19,13 @@ const _weekdayNames = kWeekdayNames;
 
 const _difficultyNames = {1: '简单', 2: '普通', 3: '困难'};
 
+/// 重复规则中文名（任务行标记用）
+const _repeatLabels = {
+  'daily': '每天',
+  'weekdays': '工作日',
+  'weekly': '每周',
+};
+
 /// 今日任务页：四象限分组 + 完成任务得经验
 class TodayPage extends ConsumerWidget {
   const TodayPage({super.key});
@@ -172,28 +179,54 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   bool _selectMode = false;
   final Set<int> _selected = {};
 
-  void _toggleSelectMode() {
+  /// 进入多选模式（[id] 非空时同时选中该项）；长按任意任务或点「多选」进入。
+  void _enterSelectMode(int? id) {
     setState(() {
-      _selectMode = !_selectMode;
+      _selectMode = true;
+      if (id != null) _selected.add(id);
+    });
+  }
+
+  void _exitSelectMode() {
+    setState(() {
+      _selectMode = false;
       _selected.clear();
     });
   }
 
-  /// 批量恢复：统一恢复选中的已完成任务为未完成（循环外只重建一次收尾提醒，
-  /// 避免 N 个任务触发 N 次全量调度）
+  void _toggleSelected(int id) {
+    setState(() {
+      if (!_selected.remove(id)) _selected.add(id);
+    });
+  }
+
+  /// 全选 / 取消全选（未完成 + 已完成全部任务）
+  void _toggleAll() {
+    final all = widget.tasks.map((t) => t.id).toList();
+    setState(() {
+      if (_selected.length == all.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(all);
+      }
+    });
+  }
+
+  /// 批量恢复：仅恢复选中中的已完成任务（未完成任务不受影响）。
+  /// 循环外只重建一次收尾提醒，避免 N 个任务触发 N 次全量调度。
   Future<void> _restoreSelected() async {
     final db = ref.read(databaseProvider);
-    for (final id in _selected.toList()) {
-      final task = widget.tasks.where((t) => t.id == id).firstOrNull;
-      if (task != null) {
-        await _restoreTask(task, syncEndOfDay: false);
-      } else {
-        await db.uncompleteTaskById(id);
-      }
+    final targets =
+        widget.tasks.where((t) => t.isDone && _selected.contains(t.id)).toList();
+    if (targets.isEmpty) return;
+    for (final task in targets) {
+      await _restoreTask(task, syncEndOfDay: false);
     }
     ref.invalidate(statsSnapshotProvider);
     await rescheduleEndOfDay(db);
-    if (mounted) setState(() => _selected.clear());
+    if (mounted) _exitSelectMode();
   }
 
   /// 恢复任务为未完成，并按开始时间重建提醒（完成/删除时取消的提醒恢复对称）。
@@ -216,28 +249,27 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
     }
   }
 
+  /// 多选删除：确认后彻底删除（含未完成 + 已完成），并取消对应提醒。
   Future<void> _deleteSelected() async {
     final count = _selected.length;
+    if (count == 0) return;
     final ok = await showConfirmDialog(
       context,
-      title: '彻底删除',
-      content: '将永久删除 $count 个已完成任务（经验保留，无法恢复）',
-      confirmText: '彻底删除',
+      title: '删除任务',
+      content: '将永久删除 $count 个任务（经验保留，无法恢复）',
+      confirmText: '删除',
       danger: true,
     );
     if (ok != true || !mounted) return;
     final db = ref.read(databaseProvider);
-    await db.hardDeleteTasks(_selected.toList());
+    final ids = _selected.toList();
+    await db.hardDeleteTasks(ids);
+    for (final id in ids) {
+      await ReminderCoordinator.cancelTaskReminder(id);
+    }
     ref.invalidate(statsSnapshotProvider);
     await rescheduleEndOfDay(db);
-    if (!mounted) return;
-    setState(() {
-      _selected.clear();
-      // 已完成任务全部删光时退出多选模式，避免失去「取消」入口
-      final remainingDone =
-          widget.tasks.where((t) => t.isDone).length - _selected.length;
-      if (remainingDone <= 0) _selectMode = false;
-    });
+    if (mounted) _exitSelectMode();
   }
 
   @override
@@ -246,9 +278,8 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
     final tasks = widget.tasks;
     final unfinished = tasks.where((t) => !t.isDone).toList();
     final done = tasks.where((t) => t.isDone).toList();
-    // build 期只读：已完成列表为空时强制退出多选模式
-    // （selected 的失效清理在恢复/删除完成时已同步执行）
-    if (done.isEmpty && _selectMode) {
+    // build 期只读：列表为空时强制退出多选模式
+    if (tasks.isEmpty && _selectMode) {
       _selectMode = false;
       _selected.clear();
     }
@@ -279,14 +310,39 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
       );
     }
 
+    // 选中项中已完成的个数（决定「恢复」按钮是否可用）
+    final selectedDone =
+        tasks.where((t) => t.isDone && _selected.contains(t.id)).length;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
       children: [
+        // ===== 多选工具条（长按任意任务进入）=====
+        if (_selectMode) ...[
+          _SelectionBar(
+            selectedCount: _selected.length,
+            totalCount: tasks.length,
+            allSelected: tasks.isNotEmpty && _selected.length == tasks.length,
+            onToggleAll: _toggleAll,
+            onRestore: selectedDone > 0 ? _restoreSelected : null,
+            onDelete: _selected.isEmpty ? null : _deleteSelected,
+            onCancel: _exitSelectMode,
+          ),
+          const SizedBox(height: 8),
+        ],
         for (final q in kQuadrants)
           if (grouped[q.id]?.isNotEmpty ?? false) ...[
             _QuadrantHeader(q: q),
             const SizedBox(height: 8),
-            ...grouped[q.id]!.map((t) => _TaskTile(task: t)),
+            ...grouped[q.id]!.map(
+              (t) => _TaskTile(
+                task: t,
+                selectMode: _selectMode,
+                selected: _selected.contains(t.id),
+                onLongPress: () => _enterSelectMode(t.id),
+                onCheckTap: () => _toggleSelected(t.id),
+              ),
+            ),
             const SizedBox(height: 12),
           ],
         // ===== 已完成区（与未完成互不干扰）=====
@@ -304,33 +360,13 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
                 ),
               ),
               const Spacer(),
-              TextButton(
-                onPressed: _toggleSelectMode,
-                child: Text(_selectMode ? '取消' : '多选'),
-              ),
+              if (!_selectMode)
+                TextButton(
+                  onPressed: () => _enterSelectMode(null),
+                  child: const Text('多选'),
+                ),
             ],
           ),
-          if (_selectMode) ...[
-            _SelectionBar(
-              selectedCount: _selected.length,
-              totalCount: done.length,
-              allSelected: _selected.length == done.length,
-              onToggleAll: () {
-                setState(() {
-                  if (_selected.length == done.length) {
-                    _selected.clear();
-                  } else {
-                    _selected
-                      ..clear()
-                      ..addAll(done.map((t) => t.id));
-                  }
-                });
-              },
-              onRestore: _restoreSelected,
-              onDelete: _deleteSelected,
-            ),
-            const SizedBox(height: 8),
-          ],
           ...done.map(
             (t) => _DoneTaskTile(
               task: t,
@@ -342,10 +378,9 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
                   _restoreTask(t);
                   return;
                 }
-                setState(() {
-                  if (!_selected.remove(t.id)) _selected.add(t.id);
-                });
+                _toggleSelected(t.id);
               },
+              onLongPress: () => _enterSelectMode(t.id),
             ),
           ),
         ],
@@ -354,7 +389,7 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   }
 }
 
-/// 已完成区多选工具条：全选 / 已选数 / 恢复 / 彻底删除
+/// 多选工具条：全选 / 已选数 / 取消 / 恢复（仅已完成项）/ 彻底删除
 class _SelectionBar extends StatelessWidget {
   const _SelectionBar({
     required this.selectedCount,
@@ -363,14 +398,20 @@ class _SelectionBar extends StatelessWidget {
     required this.onToggleAll,
     required this.onRestore,
     required this.onDelete,
+    required this.onCancel,
   });
 
   final int selectedCount;
   final int totalCount;
   final bool allSelected;
   final VoidCallback onToggleAll;
-  final VoidCallback onRestore;
-  final VoidCallback onDelete;
+
+  /// 为 null 时禁用（选中项中没有已完成任务）
+  final VoidCallback? onRestore;
+
+  /// 为 null 时禁用（未选中任何任务）
+  final VoidCallback? onDelete;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +439,12 @@ class _SelectionBar extends StatelessWidget {
                   '已选 $selectedCount/$totalCount',
                   style: TextStyle(fontSize: 12, color: palette.textSecondary),
                 ),
+                IconButton(
+                  onPressed: onCancel,
+                  icon: const Icon(Icons.close, size: 20),
+                  tooltip: '退出多选',
+                  visualDensity: VisualDensity.compact,
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -405,7 +452,7 @@ class _SelectionBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.tonalIcon(
-                    onPressed: selectedCount == 0 ? null : onRestore,
+                    onPressed: onRestore,
                     icon: const Icon(Icons.restore, size: 18),
                     label: const Text('恢复'),
                   ),
@@ -413,7 +460,7 @@ class _SelectionBar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: selectedCount == 0 ? null : onDelete,
+                    onPressed: onDelete,
                     icon: const Icon(Icons.delete_forever_outlined, size: 18),
                     label: const Text('彻底删除'),
                     style: OutlinedButton.styleFrom(
@@ -431,19 +478,21 @@ class _SelectionBar extends StatelessWidget {
   }
 }
 
-/// 已完成任务行：普通模式点击恢复；多选模式点击勾选
+/// 已完成任务行：普通模式点击恢复；多选模式点击勾选；长按进入多选
 class _DoneTaskTile extends StatelessWidget {
   const _DoneTaskTile({
     required this.task,
     required this.selectMode,
     required this.selected,
     required this.onTap,
+    this.onLongPress,
   });
 
   final TaskRow task;
   final bool selectMode;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -458,6 +507,7 @@ class _DoneTaskTile extends StatelessWidget {
       color: selected ? palette.accent.withValues(alpha: 0.5) : null,
       child: ListTile(
         onTap: onTap,
+        onLongPress: onLongPress,
         leading: selectMode
             ? Icon(
                 selected ? Icons.check_box : Icons.check_box_outline_blank,
@@ -545,9 +595,21 @@ class _QuadrantHeader extends StatelessWidget {
 }
 
 class _TaskTile extends ConsumerWidget {
-  const _TaskTile({required this.task});
+  const _TaskTile({
+    required this.task,
+    this.selectMode = false,
+    this.selected = false,
+    this.onLongPress,
+    this.onCheckTap,
+  });
 
   final TaskRow task;
+
+  /// 多选模式：点击 = 勾选/取消勾选，长按 = 进入多选并选中
+  final bool selectMode;
+  final bool selected;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onCheckTap;
 
   /// 连点防护：刚完成的任务在短时间内忽略「恢复」点击，
   /// 避免第三次连点命中已刷新的 tile 把任务撤销回未完成。
@@ -635,25 +697,38 @@ class _TaskTile extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Slidable(
         key: ValueKey('task-${task.id}'),
-        // 右滑 → 完成（与点击图标同逻辑）
-        startActionPane: buildCompletePane(
-          context,
-          onComplete: () => _toggle(context, ref),
-        ),
-        endActionPane: buildEditDeletePane(
-          context,
-          onEdit: () => showEditTaskSheet(context, task),
-          onDelete: () => _delete(context, ref),
-        ),
+        // 多选模式下禁用左右滑操作，避免与勾选点击冲突
+        startActionPane: selectMode
+            ? null
+            : buildCompletePane(
+                context,
+                onComplete: () => _toggle(context, ref),
+              ),
+        endActionPane: selectMode
+            ? null
+            : buildEditDeletePane(
+                context,
+                onEdit: () => showEditTaskSheet(context, task),
+                onDelete: () => _delete(context, ref),
+              ),
         child: Card(
           margin: EdgeInsets.zero,
           child: ListTile(
-            onTap: () => _toggle(context, ref),
-          leading: Icon(
-            task.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: task.isDone ? palette.primary : palette.textSecondary,
-            size: 26,
-          ),
+            onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
+            onLongPress: onLongPress,
+            selected: selected,
+            selectedTileColor: palette.accent.withValues(alpha: 0.35),
+            leading: selectMode
+                ? Icon(
+                    selected ? Icons.check_box : Icons.check_box_outline_blank,
+                    color: selected ? palette.primaryDark : palette.textSecondary,
+                    size: 26,
+                  )
+                : Icon(
+                    task.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
+                    color: task.isDone ? palette.primary : palette.textSecondary,
+                    size: 26,
+                  ),
           title: Text(
             task.title,
             style: TextStyle(
@@ -676,6 +751,13 @@ class _TaskTile extends ConsumerWidget {
                 Text(_difficultyNames[task.difficulty] ?? '普通',
                     style: TextStyle(fontSize: 12, color: palette.textSecondary)),
                 Text(q.name, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                if (_repeatLabels.containsKey(task.repeatRule)) ...[
+                  Icon(Icons.repeat, size: 13, color: palette.primaryDark),
+                  Text(
+                    _repeatLabels[task.repeatRule]!,
+                    style: TextStyle(fontSize: 12, color: palette.primaryDark),
+                  ),
+                ],
               ],
             ),
           ),
