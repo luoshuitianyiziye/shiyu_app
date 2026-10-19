@@ -402,13 +402,22 @@ class _FocusPageState extends ConsumerState<FocusPage> {
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        _timeText,
-                        style: TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.bold,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: palette.textPrimary,
+                      // 阶段切换时数字回弹脉冲（key 变化 → 重新播放）
+                      TweenAnimationBuilder<double>(
+                        key: ValueKey(_phase),
+                        tween: Tween(begin: 0.92, end: 1),
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutBack,
+                        builder: (context, scale, child) =>
+                            Transform.scale(scale: scale, child: child),
+                        child: Text(
+                          _timeText,
+                          style: TextStyle(
+                            fontSize: 56,
+                            fontWeight: FontWeight.bold,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: palette.textPrimary,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),

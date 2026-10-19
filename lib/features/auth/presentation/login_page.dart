@@ -128,6 +128,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: palette.textSecondary),
                 ),
+                const SizedBox(height: 40),
+                Text(
+                  '时屿 v1.0.0 · 数据保存在本机',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: palette.textSecondary.withValues(alpha: 0.7),
+                  ),
+                ),
               ],
             ),
           ),

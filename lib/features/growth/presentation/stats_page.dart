@@ -265,7 +265,20 @@ class _SevenDayChart extends StatelessWidget {
                   Container(
                     height: (counts[i] / barMax) * 84,
                     decoration: BoxDecoration(
-                      color: counts[i] > 0 ? palette.primary : palette.accent,
+                      // 柱状图渐变：有数据的主色渐深，空数据用淡强调色
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: counts[i] > 0
+                            ? [
+                                palette.primary.withValues(alpha: 0.55),
+                                palette.primary,
+                              ]
+                            : [
+                                palette.accent.withValues(alpha: 0.4),
+                                palette.accent,
+                              ],
+                      ),
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(6),
                       ),

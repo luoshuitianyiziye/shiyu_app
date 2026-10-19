@@ -60,6 +60,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   final FocusNode _focusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
   bool _saving = false;
+  bool _showMoreTools = false; // 工具栏第二行（更多格式）是否展开
   int? _categoryId; // 当前笔记分类
   Map<String, String> _captions = {}; // 图片路径 → 小字说明
 
@@ -854,23 +855,44 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              height: 46,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                children: primary,
-              ),
+            // 第一行：常用格式 + 右侧「更多」切换第二行
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      children: primary,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () =>
+                      setState(() => _showMoreTools = !_showMoreTools),
+                  icon: Icon(
+                    _showMoreTools
+                        ? Icons.keyboard_arrow_down
+                        : Icons.more_horiz,
+                  ),
+                  tooltip: _showMoreTools ? '收起更多格式' : '更多格式',
+                  color: palette.textSecondary,
+                ),
+              ],
             ),
-            Divider(height: 1, thickness: 0.5, color: palette.accent),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                children: secondary,
+            // 第二行：更多段落/颜色/对齐（默认收起，减少视觉密度）
+            if (_showMoreTools) ...[
+              Divider(height: 1, thickness: 0.5, color: palette.outline),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  children: secondary,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -1135,6 +1157,7 @@ class _ColorPickerDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
     return AlertDialog(
       title: Text(title),
       content: Wrap(
@@ -1151,7 +1174,7 @@ class _ColorPickerDialog extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: c,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black12),
+                    border: Border.all(color: palette.outline),
                   ),
                 ),
               ),
@@ -1181,6 +1204,7 @@ class LocalImageEmbedBuilder extends EmbedBuilder {
 
   @override
   Widget build(BuildContext context, EmbedContext embedContext) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
     final url = embedContext.node.value.data as String?;
     if (url == null || !url.startsWith('file://')) {
       // 非本地图（网络图）回退默认渲染
@@ -1204,9 +1228,12 @@ class LocalImageEmbedBuilder extends EmbedBuilder {
                 width: double.infinity,
                 errorBuilder: (_, _, _) => Container(
                   height: 120,
-                  color: Colors.grey.shade200,
+                  color: palette.surfaceVariant,
                   alignment: Alignment.center,
-                  child: const Icon(Icons.broken_image_outlined),
+                  child: Icon(
+                    Icons.broken_image_outlined,
+                    color: palette.textSecondary,
+                  ),
                 ),
               ),
             ),
@@ -1218,7 +1245,7 @@ class LocalImageEmbedBuilder extends EmbedBuilder {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: palette.textSecondary,
                   ),
                 ),
               ),

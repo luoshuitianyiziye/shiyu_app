@@ -560,7 +560,7 @@ class _CountdownCard extends ConsumerWidget {
                       Text(
                         label,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: color,
                         ),

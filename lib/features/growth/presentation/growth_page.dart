@@ -63,10 +63,18 @@ class GrowthPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: palette.accent,
-                    child: Icon(Icons.person, color: palette.primaryDark, size: 30),
+                  // 头像 + 当前段位描边环
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: palette.primary, width: 2),
+                    ),
+                    child: CircleAvatar(
+                      radius: 25,
+                      backgroundColor: palette.accent,
+                      child: Icon(Icons.person, color: palette.primaryDark, size: 28),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

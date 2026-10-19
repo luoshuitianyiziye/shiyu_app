@@ -24,7 +24,19 @@ class RankWallPage extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            child: Padding(
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              // 当前段位卡：品牌渐变 + 当前段位图发光描边
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    palette.accent.withValues(alpha: 0.45),
+                    palette.card,
+                  ],
+                ),
+              ),
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
@@ -53,14 +65,26 @@ class RankWallPage extends ConsumerWidget {
                       rank: current,
                       unlocked: true,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: AspectRatio(
-                        aspectRatio: 9 / 16,
-                        child: Image.asset(
-                          current.assetPath,
-                          fit: BoxFit.cover,
-                          cacheWidth: 1000,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: palette.primary.withValues(alpha: 0.3),
+                            blurRadius: 22,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: AspectRatio(
+                          aspectRatio: 9 / 16,
+                          child: Image.asset(
+                            current.assetPath,
+                            fit: BoxFit.cover,
+                            cacheWidth: 1000,
+                          ),
                         ),
                       ),
                     ),

@@ -613,6 +613,14 @@ class _DoneTaskTile extends StatelessWidget {
   }
 }
 
+/// 四象限主题色（任务卡色条 / 分组标题共用）
+Color _quadrantColor(MorandiPalette palette, int quadrant) => switch (quadrant) {
+      1 => palette.danger,
+      2 => palette.primary,
+      3 => palette.primaryDark,
+      _ => palette.textSecondary,
+    };
+
 class _QuadrantHeader extends StatelessWidget {
   const _QuadrantHeader({required this.q});
 
@@ -621,12 +629,7 @@ class _QuadrantHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final color = switch (q.id) {
-      1 => palette.danger,
-      2 => palette.primary,
-      3 => palette.primaryDark,
-      _ => palette.textSecondary,
-    };
+    final color = _quadrantColor(palette, q.id);
 
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 2),
@@ -771,8 +774,15 @@ class _TaskTile extends ConsumerWidget {
               ),
         child: Card(
           margin: EdgeInsets.zero,
-          child: ListTile(
-            onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 象限色条：一眼区分四象限
+              Container(width: 4, color: _quadrantColor(palette, task.quadrant)),
+              Expanded(
+                child: ListTile(
+                  onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
             onLongPress: onLongPress,
             selected: selected,
             selectedTileColor: palette.accent.withValues(alpha: 0.35),
@@ -819,9 +829,12 @@ class _TaskTile extends ConsumerWidget {
               ],
             ),
           ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 }
