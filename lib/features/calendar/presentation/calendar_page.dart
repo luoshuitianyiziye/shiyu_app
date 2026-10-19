@@ -4,6 +4,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme/morandi_theme.dart';
+import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
@@ -329,24 +330,18 @@ class _CountdownView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = Theme.of(context).extension<MorandiPalette>()!;
     final today = DateTime.now();
     final todayDay = DateTime(today.year, today.month, today.day);
 
     final sorted = [...events]..sort((a, b) => a.date.compareTo(b.date));
 
     if (sorted.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.hourglass_empty, size: 56, color: palette.accent),
-            const SizedBox(height: 12),
-            Text('还没有倒数日', style: TextStyle(fontSize: 16, color: palette.textSecondary)),
-            const SizedBox(height: 4),
-            Text('添加重要事件，开始倒数', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
-          ],
-        ),
+      return EmptyState(
+        icon: Icons.hourglass_empty,
+        title: '还没有倒数日',
+        subtitle: '添加重要事件，开始倒数',
+        actionLabel: '添加事件',
+        onAction: () => showAddEventSheet(context),
       );
     }
 

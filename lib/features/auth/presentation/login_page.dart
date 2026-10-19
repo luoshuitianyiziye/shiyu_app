@@ -56,8 +56,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(Icons.eco_outlined, size: 72, color: palette.primary),
-                const SizedBox(height: 16),
+                // 品牌图形：雾绿渐变圆 + 岛屿/叶子意象
+                Center(
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [palette.primary, palette.accent],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.primaryDark.withValues(alpha: 0.18),
+                          blurRadius: 24,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.eco_outlined,
+                      size: 52,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 Text(
                   '时屿',
                   textAlign: TextAlign.center,

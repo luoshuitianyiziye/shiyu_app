@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 时屿 · 日程笔记 —— 启动屏纯渐变底（Android 12+ 系统 SplashScreen 结束后使用） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#CFE0C6"
+        android:endColor="#AFC9A6"
+        android:type="linear" />
+</shape>

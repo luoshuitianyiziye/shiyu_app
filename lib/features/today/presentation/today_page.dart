@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../../app/theme/morandi_theme.dart';
+import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
@@ -141,11 +142,18 @@ class _HeaderCard extends StatelessWidget {
                         const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 8,
-                            backgroundColor: palette.accent,
-                            color: palette.primary,
+                          child: ShaderMask(
+                            // 渐变进度条：主色 → 暖金，呼应经验/奖励
+                            shaderCallback: (rect) => LinearGradient(
+                              colors: [palette.primary, palette.gold],
+                            ).createShader(rect),
+                            blendMode: BlendMode.srcATop,
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              backgroundColor: palette.accent,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -338,23 +346,12 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
     }
 
     if (tasks.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.wb_sunny_outlined, size: 56, color: palette.accent),
-            const SizedBox(height: 12),
-            Text(
-              '今天还没有任务',
-              style: TextStyle(fontSize: 16, color: palette.textSecondary),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '点右下角 + 添加第一个任务',
-              style: TextStyle(fontSize: 13, color: palette.textSecondary),
-            ),
-          ],
-        ),
+      return EmptyState(
+        icon: Icons.wb_sunny_outlined,
+        title: '今天还没有任务',
+        subtitle: '点右下角 + 添加第一个任务，开始你的一天',
+        actionLabel: '添加第一个任务',
+        onAction: () => showAddTaskSheet(context),
       );
     }
 
@@ -550,54 +547,67 @@ class _DoneTaskTile extends StatelessWidget {
         ? formatHm(task.startTime!.hour, task.startTime!.minute)
         : null;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: selected ? palette.accent.withValues(alpha: 0.5) : null,
-      child: ListTile(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        leading: selectMode
-            ? Icon(
-                selected ? Icons.check_box : Icons.check_box_outline_blank,
-                color: selected ? palette.primaryDark : palette.textSecondary,
-                size: 24,
-              )
-            : Icon(
-                Icons.check_circle,
-                color: palette.primary,
-                size: 26,
-              ),
-        title: Text(
-          task.title,
-          style: TextStyle(
-            color: palette.textSecondary,
-            decoration: TextDecoration.lineThrough,
-            fontSize: 15,
-          ),
+    return TweenAnimationBuilder<double>(
+      // 新出现的已完成条目：淡入 + 轻微上滑（列表重建不会重播）
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 10),
+          child: child,
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              if (timeStr != null) ...[
-                Icon(Icons.access_time, size: 13, color: palette.textSecondary),
-                Text(timeStr, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+      ),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        color: selected ? palette.accent.withValues(alpha: 0.5) : null,
+        child: ListTile(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          leading: selectMode
+              ? Icon(
+                  selected ? Icons.check_box : Icons.check_box_outline_blank,
+                  color: selected ? palette.primaryDark : palette.textSecondary,
+                  size: 24,
+                )
+              : Icon(
+                  Icons.check_circle,
+                  color: palette.primary,
+                  size: 26,
+                ),
+          title: Text(
+            task.title,
+            style: TextStyle(
+              color: palette.textSecondary,
+              decoration: TextDecoration.lineThrough,
+              fontSize: 15,
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (timeStr != null) ...[
+                  Icon(Icons.access_time, size: 13, color: palette.textSecondary),
+                  Text(timeStr, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                ],
+                Text(_difficultyNames[task.difficulty] ?? '普通',
+                    style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                Text(q.name, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                if (task.xpAwarded > 0)
+                  Text('+${task.xpAwarded} XP',
+                      style: TextStyle(fontSize: 12, color: palette.primaryDark)),
               ],
-              Text(_difficultyNames[task.difficulty] ?? '普通',
-                  style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-              Text(q.name, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-              if (task.xpAwarded > 0)
-                Text('+${task.xpAwarded} XP',
-                    style: TextStyle(fontSize: 12, color: palette.primaryDark)),
-            ],
+            ),
           ),
+          trailing: selectMode
+              ? null
+              : Icon(Icons.restore, size: 18, color: palette.textSecondary),
         ),
-        trailing: selectMode
-            ? null
-            : Icon(Icons.restore, size: 18, color: palette.textSecondary),
       ),
     );
   }

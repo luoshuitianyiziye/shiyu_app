@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +46,11 @@ class _ShiyuAppState extends ConsumerState<ShiyuApp> {
           debugShowCheckedModeBanner: false,
           theme: buildTheme(theme),
           routerConfig: _router,
+          // 状态栏/导航栏样式随主题（透明状态栏 + 图标深浅自适应）
+          builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+            value: theme.palette.overlayStyle,
+            child: child ?? const SizedBox.shrink(),
+          ),
           localizationsDelegates: const [
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 莫兰迪语义色板 —— 所有主题同构一套 token，新增主题 = 加一份配置。
 @immutable
@@ -12,6 +13,10 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
     required this.textPrimary,
     required this.textSecondary,
     required this.danger,
+    required this.surfaceVariant,
+    required this.outline,
+    required this.success,
+    required this.gold,
   });
 
   /// 页面底色
@@ -30,9 +35,27 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
   final Color textSecondary;
   /// 警示（未完成提醒、删除）
   final Color danger;
+  /// 次级容器底（输入框、分组卡片底）
+  final Color surfaceVariant;
+  /// 卡片描边 / 分隔线
+  final Color outline;
+  /// 达成/成功（成就、完成率）
+  final Color success;
+  /// 经验/奖励点缀（XP、晋级、段位）
+  final Color gold;
 
   /// 是否为深色主题：以背景亮度判断（墨夜背景深 → true，其余浅色背景 → false）
   bool get isDark => background.computeLuminance() < 0.3;
+
+  /// 系统状态栏/导航栏样式（透明状态栏 + 图标颜色随主题）
+  SystemUiOverlayStyle get overlayStyle => SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: background,
+        systemNavigationBarIconBrightness:
+            isDark ? Brightness.light : Brightness.dark,
+      );
 
   @override
   MorandiPalette copyWith({
@@ -44,6 +67,10 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
     Color? textPrimary,
     Color? textSecondary,
     Color? danger,
+    Color? surfaceVariant,
+    Color? outline,
+    Color? success,
+    Color? gold,
   }) {
     return MorandiPalette(
       background: background ?? this.background,
@@ -54,6 +81,10 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       danger: danger ?? this.danger,
+      surfaceVariant: surfaceVariant ?? this.surfaceVariant,
+      outline: outline ?? this.outline,
+      success: success ?? this.success,
+      gold: gold ?? this.gold,
     );
   }
 
@@ -69,6 +100,10 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
+      surfaceVariant: Color.lerp(surfaceVariant, other.surfaceVariant, t)!,
+      outline: Color.lerp(outline, other.outline, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      gold: Color.lerp(gold, other.gold, t)!,
     );
   }
 }
@@ -96,6 +131,10 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFF3E3F3A),
       textSecondary: Color(0xFF8A8B83),
       danger: Color(0xFFC98A7D),
+      surfaceVariant: Color(0xFFF0EDE5),
+      outline: Color(0xFFE6E1D8),
+      success: Color(0xFF8FAE8B),
+      gold: Color(0xFFE5C99B),
     ),
   ),
   MorandiTheme(
@@ -110,6 +149,10 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFF4A3E3E),
       textSecondary: Color(0xFF9A8A8A),
       danger: Color(0xFFC07E74),
+      surfaceVariant: Color(0xFFF5EEEC),
+      outline: Color(0xFFEADCD8),
+      success: Color(0xFF9BAE8F),
+      gold: Color(0xFFE0B98A),
     ),
   ),
   MorandiTheme(
@@ -124,6 +167,10 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFF3A4148),
       textSecondary: Color(0xFF838E98),
       danger: Color(0xFFC08A7A),
+      surfaceVariant: Color(0xFFECF0F4),
+      outline: Color(0xFFDCE4EB),
+      success: Color(0xFF8FAE8B),
+      gold: Color(0xFFDDBF92),
     ),
   ),
   MorandiTheme(
@@ -138,6 +185,10 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFF4A453A),
       textSecondary: Color(0xFF988F7E),
       danger: Color(0xFFC0936F),
+      surfaceVariant: Color(0xFFF2EDE2),
+      outline: Color(0xFFE6DECE),
+      success: Color(0xFF93A883),
+      gold: Color(0xFFD9BE93),
     ),
   ),
   MorandiTheme(
@@ -152,6 +203,10 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFF423C4A),
       textSecondary: Color(0xFF8E8598),
       danger: Color(0xFFB9858A),
+      surfaceVariant: Color(0xFFF1EDF5),
+      outline: Color(0xFFE4DCEC),
+      success: Color(0xFF9AAE93),
+      gold: Color(0xFFD9B9A0),
     ),
   ),
   MorandiTheme(
@@ -166,9 +221,43 @@ const morandiThemes = <MorandiTheme>[
       textPrimary: Color(0xFFE6E4DA),
       textSecondary: Color(0xFF9A9C8F),
       danger: Color(0xFFD39A8B),
+      surfaceVariant: Color(0xFF3C4137),
+      outline: Color(0xFF4A5044),
+      success: Color(0xFF8FB08C),
+      gold: Color(0xFFE2C28E),
     ),
   ),
 ];
+
+/// 莫兰迪页面转场：300ms 淡入 + 轻微水平滑入（替代默认平台转场）
+class MorandiPageTransitionsBuilder extends PageTransitionsBuilder {
+  const MorandiPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.03, 0),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
+    );
+  }
+}
 
 /// 由 MorandiTheme 构建完整 ThemeData（Material 3）
 ThemeData buildTheme(MorandiTheme theme) {
@@ -190,11 +279,18 @@ ThemeData buildTheme(MorandiTheme theme) {
     colorScheme: scheme,
     scaffoldBackgroundColor: p.background,
     extensions: [p],
+    pageTransitionsTheme: PageTransitionsTheme(
+      builders: {
+        for (final platform in TargetPlatform.values)
+          platform: const MorandiPageTransitionsBuilder(),
+      },
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: p.background,
       foregroundColor: p.textPrimary,
       elevation: 0,
       centerTitle: false,
+      systemOverlayStyle: p.overlayStyle,
       titleTextStyle: TextStyle(
         color: p.textPrimary,
         fontSize: 20,
@@ -205,7 +301,16 @@ ThemeData buildTheme(MorandiTheme theme) {
       color: p.card,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: p.outline, width: 1),
+      ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: p.primary,
+      foregroundColor: Colors.white,
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: p.card,
@@ -221,7 +326,7 @@ ThemeData buildTheme(MorandiTheme theme) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: p.card,
+      fillColor: p.surfaceVariant,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
@@ -236,7 +341,7 @@ ThemeData buildTheme(MorandiTheme theme) {
       behavior: SnackBarBehavior.floating,
       backgroundColor: p.primaryDark,
     ),
-    dividerColor: p.accent.withValues(alpha: 0.6),
+    dividerColor: p.outline,
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: p.primary,

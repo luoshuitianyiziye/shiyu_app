@@ -8,6 +8,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme/morandi_theme.dart';
+import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
@@ -97,14 +98,22 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                   return matchQuery && matchCategory;
                 }).toList();
                 if (filtered.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _query.isEmpty && _filterCategoryId == null
-                          ? '还没有笔记，点右下角写一篇'
-                          : '没有找到相关笔记',
-                      style: TextStyle(color: palette.textSecondary),
-                    ),
-                  );
+                  final isFiltering =
+                      _query.isNotEmpty || _filterCategoryId != null;
+                  return isFiltering
+                      ? const EmptyState(
+                          icon: Icons.search_off_outlined,
+                          title: '没有找到相关笔记',
+                          subtitle: '换个关键词，或清除筛选再试试',
+                          compact: true,
+                        )
+                      : EmptyState(
+                          icon: Icons.edit_note_outlined,
+                          title: '还没有笔记',
+                          subtitle: '点右下角 + 写一篇，或从右上角导入文本',
+                          actionLabel: '写第一篇笔记',
+                          onAction: () => _openEditor(),
+                        );
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
