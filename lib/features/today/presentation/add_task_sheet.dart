@@ -11,8 +11,8 @@ import '../../../core/utils/format.dart';
 import '../application/task_service.dart';
 import '../data/quadrants.dart';
 
-/// 新建任务底部弹层
-Future<void> showAddTaskSheet(BuildContext context) {
+/// 新建任务底部弹层（[initialDate] 可指定添加到某一天，默认今天）
+Future<void> showAddTaskSheet(BuildContext context, {DateTime? initialDate}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -20,7 +20,7 @@ Future<void> showAddTaskSheet(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
     ),
-    builder: (_) => const _AddTaskSheet(),
+    builder: (_) => _AddTaskSheet(initialDate: initialDate),
   );
 }
 
@@ -38,10 +38,13 @@ Future<void> showEditTaskSheet(BuildContext context, TaskRow task) {
 }
 
 class _AddTaskSheet extends ConsumerStatefulWidget {
-  const _AddTaskSheet({this.task});
+  const _AddTaskSheet({this.task, this.initialDate});
 
   /// 非空 = 编辑已有任务
   final TaskRow? task;
+
+  /// 新建任务的日期（null = 今天）
+  final DateTime? initialDate;
 
   @override
   ConsumerState<_AddTaskSheet> createState() => _AddTaskSheetState();
@@ -99,18 +102,21 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    // 编辑：沿用任务原日期；新建：用弹层传入的日期（默认今天）
+    final date = _isEdit ? widget.task!.date : (widget.initialDate ?? today);
+    final dateDay = DateTime(date.year, date.month, date.day);
 
-    // 跨天兜底：若今日日期 provider 仍停留在昨天（后台过夜定时器延迟），
+    // 跨天兜底：新建到今天且今日日期 provider 仍停留在昨天（后台过夜定时器延迟），
     // 先同步到今天，否则新任务（日期=今天）不会出现在列表中。
-    if (ref.read(todayDateProvider) != today) {
+    if (!_isEdit && dateDay == today && ref.read(todayDateProvider) != today) {
       ref.read(todayDateProvider.notifier).state = today;
     }
 
     final startDateTime = _withTime && _startTime != null
         ? DateTime(
-            today.year,
-            today.month,
-            today.day,
+            dateDay.year,
+            dateDay.month,
+            dateDay.day,
             _startTime!.hour,
             _startTime!.minute,
           )
@@ -151,7 +157,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     await service.create(
       TasksCompanion.insert(
         title: title,
-        date: today,
+        date: dateDay,
         quadrant: Value(_quadrant),
         difficulty: Value(_difficulty),
         startTime: Value(startDateTime),
@@ -163,9 +169,14 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
     if (mounted) {
       Navigator.of(context).pop();
+      final dateLabel = dateDay == today
+          ? '今日任务'
+          : '${dateDay.month}月${dateDay.day}日任务';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(startInPast ? '已添加到今日任务（该时段已过，未设提醒）' : '已添加到今日任务'),
+          content: Text(
+            startInPast ? '已添加到$dateLabel（该时段已过，未设提醒）' : '已添加到$dateLabel',
+          ),
         ),
       );
     }

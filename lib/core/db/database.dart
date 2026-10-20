@@ -329,6 +329,19 @@ class AppDatabase extends _$AppDatabase {
     return q.watch();
   }
 
+  /// 任务日期范围查询（日历月视图用；含 start，不含 end）
+  Stream<List<TaskRow>> watchTasksBetween(DateTime start, DateTime end) {
+    return (select(tasks)
+          ..where(
+            (t) =>
+                t.deleted.equals(false) &
+                t.date.isBiggerOrEqualValue(start) &
+                t.date.isSmallerThanValue(end),
+          )
+          ..orderBy([(t) => OrderingTerm(expression: t.date)]))
+        .watch();
+  }
+
   Future<List<TaskRow>> tasksForDate(DateTime date) async =>
       _tasksForDateQuery(date).get();
 

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
@@ -88,11 +89,19 @@ class _AiDraftListState extends ConsumerState<AiDraftList> {
 
     // 按日期统计：让用户明确任务被加到了哪一天（未来日期不在今日页显示）
     final failedHint = failed.isEmpty ? '' : '，${failed.length} 个失败可重试';
+    final today = DateTime(now.year, now.month, now.day);
+    final hasOtherDates = succeeded.any((d) => d.effectiveDate != today);
 
     messenger.showSnackBar(
       SnackBar(
         content: Text('${summarizeAddedTasks(succeeded, now: now)}$failedHint'),
         duration: const Duration(seconds: 4),
+        action: hasOtherDates
+            ? SnackBarAction(
+                label: '去日历',
+                onPressed: () => context.go('/calendar'),
+              )
+            : null,
       ),
     );
 

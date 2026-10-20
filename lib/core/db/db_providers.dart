@@ -32,6 +32,23 @@ final todayTasksProvider = StreamProvider<List<TaskRow>>((ref) {
   return db.watchTasksForDate(date);
 });
 
+/// 日历：某个月的任务（月视图任务标记用）
+final monthTasksProvider = StreamProvider.autoDispose
+    .family<List<TaskRow>, DateTime>((ref, month) {
+      final db = ref.watch(databaseProvider);
+      final start = DateTime(month.year, month.month, 1);
+      final end = DateTime(month.year, month.month + 1, 1);
+      return db.watchTasksBetween(start, end);
+    });
+
+/// 日历：选中日期的任务（选中日列表用）
+final dateTasksProvider = StreamProvider.autoDispose
+    .family<List<TaskRow>, DateTime>((ref, date) {
+      final db = ref.watch(databaseProvider);
+      final day = DateTime(date.year, date.month, date.day);
+      return db.watchTasksForDate(day);
+    });
+
 /// 全部事件流（日历模块用）
 final eventsStreamProvider = StreamProvider<List<EventRow>>((ref) {
   final db = ref.watch(databaseProvider);

@@ -527,6 +527,38 @@ void main() {
     });
   });
 
+  group('日历任务范围查询', () {
+    test('watchTasksBetween 只返回范围内任务（含未来日期）', () async {
+      final start = DateTime(2026, 10, 1);
+      final end = DateTime(2026, 11, 1);
+      await db.addTask(
+        TasksCompanion.insert(title: '十月任务', date: DateTime(2026, 10, 15)),
+      );
+      await db.addTask(
+        TasksCompanion.insert(title: '明天任务', date: DateTime(2026, 10, 22)),
+      );
+      await db.addTask(
+        TasksCompanion.insert(title: '十一月任务', date: DateTime(2026, 11, 2)),
+      );
+
+      final tasks = await db.watchTasksBetween(start, end).first;
+      expect(tasks.where((t) => t.title == '十月任务'), hasLength(1));
+      expect(tasks.where((t) => t.title == '明天任务'), hasLength(1));
+      expect(tasks.where((t) => t.title == '十一月任务'), isEmpty);
+    });
+
+    test('已删除任务不出现在范围查询中', () async {
+      final id = await db.addTask(
+        TasksCompanion.insert(title: '待删除', date: DateTime(2026, 10, 20)),
+      );
+      await db.softDeleteTask(id);
+      final tasks = await db
+          .watchTasksBetween(DateTime(2026, 10, 1), DateTime(2026, 11, 1))
+          .first;
+      expect(tasks.where((t) => t.title == '待删除'), isEmpty);
+    });
+  });
+
   group('今日复盘鼓励文案（本地预置，不调用 AI）', () {
     test('按完成情况分档选择文案', () {
       final noTask = Encouragements.pick(

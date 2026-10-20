@@ -10,6 +10,9 @@ import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../../today/application/task_service.dart';
+import '../../today/data/quadrants.dart';
+import '../../today/presentation/add_task_sheet.dart';
 import '../application/event_service.dart';
 import 'add_event_sheet.dart';
 
@@ -40,6 +43,10 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final eventsAsync = ref.watch(eventsStreamProvider);
+    final monthTasks =
+        ref.watch(monthTasksProvider(_month)).value ?? const <TaskRow>[];
+    final dayTasks =
+        ref.watch(dateTasksProvider(_selected)).value ?? const <TaskRow>[];
 
     return Scaffold(
       appBar: AppBar(
@@ -76,8 +83,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 month: _month,
                 selected: _selected,
                 events: events,
+                tasks: monthTasks,
+                dayTasks: dayTasks,
                 onMonthChange: _changeMonth,
                 onSelect: (d) => setState(() => _selected = d),
+                onAddTask: () =>
+                    showAddTaskSheet(context, initialDate: _selected),
                 onAddEvent: () =>
                     showAddEventSheet(context, initialDate: _selected),
               )
@@ -94,16 +105,26 @@ class _MonthView extends StatelessWidget {
     required this.month,
     required this.selected,
     required this.events,
+    required this.tasks,
+    required this.dayTasks,
     required this.onMonthChange,
     required this.onSelect,
+    required this.onAddTask,
     required this.onAddEvent,
   });
 
   final DateTime month;
   final DateTime selected;
   final List<EventRow> events;
+
+  /// 当月全部任务（月视图标记用）
+  final List<TaskRow> tasks;
+
+  /// 选中日期的任务
+  final List<TaskRow> dayTasks;
   final void Function(int delta) onMonthChange;
   final void Function(DateTime day) onSelect;
+  final VoidCallback onAddTask;
   final VoidCallback onAddEvent;
 
   @override
@@ -119,6 +140,12 @@ class _MonthView extends StatelessWidget {
     for (final e in events) {
       if (e.date.year == month.year && e.date.month == month.month) {
         eventsByDay.putIfAbsent(e.date.day, () => []).add(e);
+      }
+    }
+    final tasksByDay = <int, List<TaskRow>>{};
+    for (final t in tasks) {
+      if (t.date.year == month.year && t.date.month == month.month) {
+        tasksByDay.putIfAbsent(t.date.day, () => []).add(t);
       }
     }
     final dayEvents =
@@ -197,6 +224,10 @@ class _MonthView extends StatelessWidget {
             final isToday = date == todayDay;
             final isSelected = date == selected;
             final hasEvents = eventsByDay[day]?.isNotEmpty ?? false;
+            final dayTaskList = tasksByDay[day];
+            final hasTasks = dayTaskList?.isNotEmpty ?? false;
+            final allTasksDone =
+                hasTasks && dayTaskList!.every((t) => t.isDone);
 
             return InkWell(
               borderRadius: BorderRadius.circular(12),
@@ -233,14 +264,32 @@ class _MonthView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (hasEvents)
-                      Container(
-                        width: 5,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: palette.primaryDark,
-                          shape: BoxShape.circle,
-                        ),
+                    if (hasTasks || hasEvents)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (hasTasks)
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: allTasksDone
+                                    ? palette.outline
+                                    : palette.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          if (hasTasks && hasEvents) const SizedBox(width: 2),
+                          if (hasEvents)
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: palette.primaryDark,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
                       )
                     else
                       const SizedBox(height: 5),
@@ -251,7 +300,7 @@ class _MonthView extends StatelessWidget {
           },
         ),
         const SizedBox(height: 16),
-        // 选中日的事件
+        // 选中日的任务与事件
         Row(
           children: [
             Text(
@@ -264,25 +313,80 @@ class _MonthView extends StatelessWidget {
             ),
             const Spacer(),
             TextButton.icon(
+              onPressed: onAddTask,
+              icon: const Icon(Icons.checklist, size: 18),
+              label: const Text('任务'),
+            ),
+            TextButton.icon(
               onPressed: onAddEvent,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('添加'),
+              icon: const Icon(Icons.event, size: 18),
+              label: const Text('事件'),
             ),
           ],
         ),
-        if (dayEvents.isEmpty)
+        if (dayTasks.isEmpty && dayEvents.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text(
-                '这一天没有事件',
+                '这一天没有任务和事件',
                 style: TextStyle(color: palette.textSecondary, fontSize: 13),
               ),
             ),
           )
-        else
-          ...dayEvents.map((e) => _EventCard(event: e)),
+        else ...[
+          for (final task in dayTasks) _CalendarTaskCard(task: task),
+          if (dayTasks.isNotEmpty && dayEvents.isNotEmpty)
+            const Divider(height: 20),
+          for (final e in dayEvents) _EventCard(event: e),
+        ],
       ],
+    );
+  }
+}
+
+/// 日历中的任务卡片：勾选完成 / 点击编辑
+class _CalendarTaskCard extends ConsumerWidget {
+  const _CalendarTaskCard({required this.task});
+
+  final TaskRow task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    final q = quadrantById(task.quadrant);
+    final time = task.startTime == null
+        ? null
+        : formatHm(task.startTime!.hour, task.startTime!.minute);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: () => showEditTaskSheet(context, task),
+        leading: Checkbox(
+          value: task.isDone,
+          activeColor: palette.primary,
+          onChanged: (_) async {
+            await ref.read(taskServiceProvider).toggle(task);
+          },
+        ),
+        title: Text(
+          task.title,
+          style: TextStyle(
+            fontSize: 14,
+            color: task.isDone ? palette.textSecondary : palette.textPrimary,
+            decoration: task.isDone ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            '${time ?? '未设时段'} · ${q.name}'
+            '${task.repeatRule == 'none' ? '' : ' · 重复'}',
+            style: TextStyle(fontSize: 11, color: palette.textSecondary),
+          ),
+        ),
+      ),
     );
   }
 }
