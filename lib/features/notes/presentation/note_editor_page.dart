@@ -39,6 +39,12 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   late final TextEditingController _titleController;
   late final QuillController _quill;
   final FocusNode _focusNode = FocusNode();
+
+  /// 工具栏按钮共享的焦点节点：不抢焦点，避免点格式按钮时键盘收起退出编辑态
+  late final FocusNode _toolbarFocusNode;
+
+  /// 最近一次点击工具栏的时间（用于豁免自动退出编辑态）
+  DateTime? _lastToolbarTap;
   final ScrollController _scrollController = ScrollController();
   bool _saving = false;
   bool _showMoreTools = false; // 工具栏第二行（更多格式）是否展开
@@ -70,6 +76,10 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   void initState() {
     super.initState();
     _browsing = !_isNew;
+    _toolbarFocusNode = FocusNode(
+      debugLabel: 'note-toolbar',
+      canRequestFocus: false,
+    );
     _titleController = TextEditingController(
       text: widget.existing?.title ?? '',
     );
@@ -107,20 +117,30 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   /// [height] 为键盘高度（逻辑像素）；从 >0 变为 0 视为收起。
   void _handleKeyboardHeight(double height) {
     if (_lastKeyboardHeight > 0 && height <= 0 && !_browsing && !_searching) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _exitEditMode();
-      });
+      if (_recentToolbarTap) {
+        // 刚点过工具栏（应用格式）：键盘收起是副作用，留在编辑态并恢复焦点
+        _focusNode.requestFocus();
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _exitEditMode();
+        });
+      }
     }
     _lastKeyboardHeight = height;
   }
 
   /// 焦点丢失兜底：编辑态焦点被夺走（且非搜索态）时回到浏览模式。
-  /// 延迟检查，避免搜索框切换焦点瞬间误退出。
+  /// 延迟检查，避免搜索框切换焦点瞬间误退出；点过工具栏则不退出。
   void _onFocusChanged() {
     if (_browsing || _focusNode.hasFocus) return;
     Future<void>.delayed(const Duration(milliseconds: 250), () {
       if (!mounted || _browsing || _searching) return;
       if (_focusNode.hasFocus) return;
+      if (_recentToolbarTap) {
+        // 刚点过格式按钮：恢复焦点，用户可以继续输入
+        _focusNode.requestFocus();
+        return;
+      }
       _exitEditMode();
     });
   }
@@ -337,6 +357,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     _titleController.dispose();
     _quill.dispose();
     _focusNode.dispose();
+    _toolbarFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -847,6 +868,9 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   }
 
   /// 工具栏按钮：图标 + 长按提示 + 激活高亮
+  ///
+  /// 按钮不参与焦点（canRequestFocus: false）：点击时编辑器保持聚焦，
+  /// 不会因键盘收起触发「自动退出编辑态」，用户可以继续输入。
   Widget _toolButton({
     required IconData icon,
     required String hint,
@@ -858,18 +882,35 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     return Tooltip(
       message: hint,
       child: IconButton(
+        focusNode: _toolbarFocusNode,
         icon: Icon(
           icon,
           size: 20,
           color: active ? palette.primaryDark : palette.textSecondary,
         ),
         visualDensity: VisualDensity.compact,
-        onPressed: onTap,
+        onPressed: () => _toolbarAction(onTap),
         style: IconButton.styleFrom(
           backgroundColor: active ? palette.accent : null,
         ),
       ),
     );
+  }
+
+  /// 点击工具栏按钮：执行格式操作并确保编辑器仍聚焦（可继续输入）
+  void _toolbarAction(VoidCallback action) {
+    _lastToolbarTap = DateTime.now();
+    action();
+    if (!_focusNode.hasFocus) {
+      _focusNode.requestFocus();
+    }
+  }
+
+  /// 最近 2 秒内点过工具栏（用于豁免「焦点丢失/键盘收起」自动退出）
+  bool get _recentToolbarTap {
+    final at = _lastToolbarTap;
+    return at != null &&
+        DateTime.now().difference(at) < const Duration(seconds: 2);
   }
 
   Widget _buildToolbar() {
@@ -883,7 +924,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
         icon: Icons.title,
         hint: '标题（正文/标题1/标题2）',
         onTap: _cycleHeader,
-        active: _hasAttr(Attribute.h1) || _hasAttr(Attribute.h2),
+        active: _lineHeader().value != null,
       ),
       _toolButton(
         icon: Icons.format_bold,
@@ -1049,15 +1090,52 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     );
   }
 
+  /// 当前光标所在行的标题属性（正文返回 [Attribute.header]）。
+  ///
+  /// 不能用 getSelectionStyle 判断：光标在行首/空行时它会把块级 header 属性
+  /// 过滤掉（collectStyle 的行首分支排除 header），导致按钮永远认为"当前无标题"。
+  Attribute _lineHeader() {
+    final start = _quill.selection.start;
+    final offset = start < 0 ? 0 : start;
+    try {
+      final res = _quill.document.queryChild(offset);
+      final node = res.node;
+      if (node is Line) {
+        return node.style.attributes[Attribute.header.key] ?? Attribute.header;
+      }
+    } catch (_) {
+      // 文档结构异常时按正文处理
+    }
+    return Attribute.header;
+  }
+
   /// 标题循环：正文 → 标题1 → 标题2 → 正文
   void _cycleHeader() {
-    final attrs = _quill.getSelectionStyle().attributes;
-    if (attrs[Attribute.h1.key]?.value == Attribute.h1.value) {
-      _toggleAttr(Attribute.h2);
-    } else if (attrs[Attribute.h2.key]?.value == Attribute.h2.value) {
-      _toggleAttr(Attribute.clone(Attribute.h1, null)); // 清除标题
-    } else {
-      _toggleAttr(Attribute.h1);
+    final current = _lineHeader();
+    final next = switch (current.value) {
+      1 => Attribute.h2,
+      2 => Attribute.header, // 清除标题
+      _ => Attribute.h1,
+    };
+    try {
+      // 工具栏按钮点击后光标可能失效 → 兜底放到文末
+      if (_quill.selection.start < 0) {
+        _quill.updateSelection(
+          TextSelection.collapsed(offset: _quill.document.length - 1),
+          ChangeSource.local,
+        );
+      }
+      _quill.formatSelection(next);
+      // 块级属性记录在行上，不依赖 toggledStyle；
+      // 清掉缓存避免影响后续按钮判断与输入
+      _quill.toggledStyle = _quill.toggledStyle.removeAll({
+        Attribute.h1,
+        Attribute.h2,
+        Attribute.h3,
+      });
+      setState(() {});
+    } catch (_) {
+      // 文档结构异常时静默跳过，不影响编辑
     }
   }
 

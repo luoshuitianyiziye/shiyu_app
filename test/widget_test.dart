@@ -109,6 +109,46 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });
+
+  testWidgets('笔记正文可以应用标题格式并保存', (WidgetTester tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async => db.close());
+
+    final nickname = ValueNotifier<String?>('小屿');
+    final themeId = ValueNotifier<String>('mist_green');
+
+    await tester.pumpWidget(
+      _buildApp(nickname: nickname, themeId: themeId, db: db),
+    );
+    await tester.pumpAndSettle();
+
+    // 进入笔记页 → 新建笔记
+    await tester.tap(find.text('笔记'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await tester.pumpAndSettle();
+
+    // 填写笔记标题
+    await tester.enterText(find.byType(TextField).first, '标题格式测试');
+    await tester.pump();
+    expect(find.text('保存'), findsOneWidget, reason: '编辑态应有保存按钮');
+
+    // 空行点「标题」按钮（正文 → 标题1），验证点击后仍处于编辑态
+    await tester.tap(find.byIcon(Icons.title));
+    await tester.pumpAndSettle();
+    expect(find.text('保存'), findsOneWidget, reason: '点标题后仍应处于编辑态');
+
+    // 保存并检查落库正文带 header 属性
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final notes = await (db.select(db.notes)).get();
+    final body = notes.firstWhere((n) => n.title == '标题格式测试').body;
+    expect(body, contains('"header":1'));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 }
 
 Widget _buildApp({
