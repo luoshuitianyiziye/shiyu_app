@@ -57,6 +57,22 @@ final settingsStreamProvider = StreamProvider<SettingsRow>((ref) async* {
   yield* db.watchSettings();
 });
 
+/// 设置的同步快照：由 main 启动时注入初始值，之后随设置流持续同步。
+///
+/// 供需要**同步读取**设置的场景使用（专注页计时时长、白噪音读取），
+/// 避免直接读 [settingsStreamProvider].value 在流未就绪时回退默认值造成误差。
+class SettingsSnapshotNotifier extends Notifier<SettingsRow?> {
+  @override
+  SettingsRow? build() => null;
+
+  void update(SettingsRow row) => state = row;
+}
+
+final settingsSnapshotProvider =
+    NotifierProvider<SettingsSnapshotNotifier, SettingsRow?>(
+      SettingsSnapshotNotifier.new,
+    );
+
 /// 用户上传的自定义白噪音清单（本机文档目录）
 final customNoiseProvider = FutureProvider<List<CustomNoiseItem>>((ref) {
   return CustomNoiseStore.load();

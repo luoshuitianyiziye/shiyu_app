@@ -120,7 +120,11 @@ class _FocusPageState extends ConsumerState<FocusPage> {
       return;
     }
     if (_noiseInitialized) return;
-    final s = await ref.read(databaseProvider).ensureSettings();
+    // 优先用同步快照（main 启动注入并随设置流同步）；
+    // 快照尚未就绪时回退异步读取数据库。
+    final s =
+        ref.read(settingsSnapshotProvider) ??
+        await ref.read(databaseProvider).ensureSettings();
     if (!mounted) return;
     // 读设置成功后才标记已初始化：若读取失败（异常/中途销毁），
     // 下次开始仍会重新尝试按设置自动播放默认音轨
@@ -235,7 +239,8 @@ class _FocusPageState extends ConsumerState<FocusPage> {
 
   /// [focus, shortBreak, longBreak] 分钟
   List<int> _durations() {
-    final s = ref.read(settingsStreamProvider).value;
+    // 同步快照读取：设置流未就绪时也能拿到真实设置（而非静默回退默认值）
+    final s = ref.read(settingsSnapshotProvider);
     return [
       s?.focusMinutes ?? 25,
       s?.shortBreakMinutes ?? 5,
@@ -362,8 +367,8 @@ class _FocusPageState extends ConsumerState<FocusPage> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
-    // 保持设置流活跃（默认白噪音/番茄时长就绪；修复首次开始时 .value 为空）
-    ref.watch(settingsStreamProvider);
+    // 设置同步快照：变化时重建（番茄时长等），不依赖异步流是否就绪
+    ref.watch(settingsSnapshotProvider);
     // 用户上传的自定义音轨（上传/删除后 invalidate 自动刷新）
     final customNoise =
         ref.watch(customNoiseProvider).value ?? const <CustomNoiseItem>[];

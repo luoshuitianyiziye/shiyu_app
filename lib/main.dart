@@ -61,6 +61,15 @@ Future<void> main() async {
     ],
   );
 
+  // 设置同步快照：启动时注入当前设置，之后随设置流保持同步（供专注页同步读取）
+  container.read(settingsSnapshotProvider.notifier).update(settings);
+  container.listen(
+    settingsStreamProvider,
+    (previous, next) =>
+        next.whenData(container.read(settingsSnapshotProvider.notifier).update),
+    fireImmediately: true,
+  );
+
   // 跨午夜守护：每分钟检查日期是否翻篇 → 刷新今日列表 + 滚动重复任务
   // 带异常保护与重入防护：tick 内任一异步步骤抛错不会让当天滚动/提醒调度
   // 静默失败；tick 执行超过 1 分钟时跳过重叠的下一轮。
