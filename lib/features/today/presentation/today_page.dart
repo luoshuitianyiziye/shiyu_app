@@ -17,6 +17,7 @@ import '../../../core/utils/format.dart';
 import '../../ai/application/ai_service.dart';
 import '../../growth/presentation/rank_up_dialog.dart';
 import '../application/task_service.dart';
+import '../data/encouragements.dart';
 import '../data/quadrants.dart';
 import 'add_task_sheet.dart';
 
@@ -280,21 +281,18 @@ class _DailyReviewCard extends ConsumerStatefulWidget {
 
 class _DailyReviewCardState extends ConsumerState<_DailyReviewCard> {
   String? _advice;
-  bool _loading = false;
 
-  Future<void> _askAi(StatsSnapshot stats) async {
-    if (_loading) return;
-    setState(() => _loading = true);
-    try {
-      final text = await ref.read(aiServiceProvider).reviewToday(stats);
-      if (mounted) setState(() => _advice = text);
-    } on AiException catch (e) {
-      if (mounted) FeedbackDebouncer.toast(context, e.message);
-    } catch (e) {
-      if (mounted) FeedbackDebouncer.toast(context, 'AI 出了点小问题：$e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+  /// 换一句本地预置鼓励（不调用 AI）
+  void _changeEncouragement(StatsSnapshot stats) {
+    setState(() {
+      _advice = Encouragements.pick(
+        todayDone: stats.todayDone,
+        todayTotal: stats.todayTotal,
+        weekPomodoros: stats.weekPomodoros,
+        streakDays: stats.streakDays,
+        previous: _advice,
+      );
+    });
   }
 
   @override
@@ -345,16 +343,10 @@ class _DailyReviewCardState extends ConsumerState<_DailyReviewCard> {
                     ),
                   ),
                   IconButton(
-                    onPressed: _loading ? null : () => _askAi(stats),
-                    icon: _loading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_awesome, size: 18),
+                    onPressed: () => _changeEncouragement(stats),
+                    icon: const Icon(Icons.auto_awesome, size: 18),
                     color: palette.primaryDark,
-                    tooltip: 'AI 说两句',
+                    tooltip: '换一句鼓励',
                     visualDensity: VisualDensity.compact,
                   ),
                 ],

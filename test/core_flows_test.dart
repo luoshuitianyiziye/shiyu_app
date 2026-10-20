@@ -23,6 +23,7 @@ import 'package:shiyu_app/core/utils/format.dart';
 import 'package:shiyu_app/core/utils/remind_calc.dart';
 import 'package:shiyu_app/features/notes/data/note_body.dart';
 import 'package:shiyu_app/features/notes/data/text_import.dart';
+import 'package:shiyu_app/features/today/data/encouragements.dart';
 
 void main() {
   late AppDatabase db;
@@ -523,6 +524,60 @@ void main() {
       expect(extractImagePaths(body), ['/a/b.png']);
       expect(extractImagePaths('not json'), isEmpty);
       expect(extractImagePaths(''), isEmpty);
+    });
+  });
+
+  group('今日复盘鼓励文案（本地预置，不调用 AI）', () {
+    test('按完成情况分档选择文案', () {
+      final noTask = Encouragements.pick(
+        todayDone: 0,
+        todayTotal: 0,
+        weekPomodoros: 0,
+        streakDays: 0,
+      );
+      expect(Encouragements.noTasks, contains(noTask));
+
+      final allDone = Encouragements.pick(
+        todayDone: 3,
+        todayTotal: 3,
+        weekPomodoros: 0,
+        streakDays: 0,
+      );
+      expect(Encouragements.allDone, contains(allDone));
+
+      final overHalf = Encouragements.pick(
+        todayDone: 2,
+        todayTotal: 3,
+        weekPomodoros: 0,
+        streakDays: 0,
+      );
+      expect(Encouragements.overHalf, contains(overHalf));
+
+      final started = Encouragements.pick(
+        todayDone: 1,
+        todayTotal: 5,
+        weekPomodoros: 0,
+        streakDays: 0,
+      );
+      expect(Encouragements.started, contains(started));
+    });
+
+    test('结果始终落在候选池内（含番茄/连续打卡文案）', () {
+      final pool = [
+        ...Encouragements.overHalf,
+        ...Encouragements.pomodoro,
+        ...Encouragements.streak,
+      ];
+      for (var i = 0; i < 20; i++) {
+        final text = Encouragements.pick(
+          todayDone: 2,
+          todayTotal: 3,
+          weekPomodoros: 5,
+          streakDays: 10,
+          previous: '上一句',
+        );
+        expect(pool, contains(text));
+      }
     });
   });
 }
