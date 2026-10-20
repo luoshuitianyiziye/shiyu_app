@@ -11,13 +11,17 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
+import 'package:flutter/material.dart' show Color;
 import 'package:flutter_quill/flutter_quill.dart' show Document;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:shiyu_app/core/backup/backup_service.dart';
 import 'package:shiyu_app/core/db/database.dart';
-import 'package:shiyu_app/core/utils/remind_calc.dart';
 import 'package:shiyu_app/core/domain/ranks.dart';
+import 'package:shiyu_app/core/domain/stats.dart';
+import 'package:shiyu_app/core/utils/format.dart';
+import 'package:shiyu_app/core/utils/remind_calc.dart';
+import 'package:shiyu_app/features/notes/data/note_body.dart';
 import 'package:shiyu_app/features/notes/data/text_import.dart';
 
 void main() {
@@ -426,6 +430,99 @@ void main() {
         await file.delete();
         await dir.delete();
       }
+    });
+  });
+
+  group('段位与经验规则', () {
+    test('任务 XP 系数：难度 × 象限', () {
+      // 基础 10 XP；难度：简单 0.5 / 普通 1.0 / 困难 2.0；象限 I 额外 ×1.5
+      expect(taskXp(difficulty: 1, quadrant: 2), 5);
+      expect(taskXp(difficulty: 2, quadrant: 2), 10);
+      expect(taskXp(difficulty: 3, quadrant: 2), 20);
+      expect(taskXp(difficulty: 1, quadrant: 1), 8); // 10*0.5*1.5=7.5 → 8
+      expect(taskXp(difficulty: 2, quadrant: 1), 15);
+      expect(taskXp(difficulty: 3, quadrant: 1), 30);
+    });
+
+    test('等级经验公式与段位边界', () {
+      // 升到 L 级所需累计经验：50 * L * (L+1) → Lv.2 需 300 XP
+      expect(xpNeededForLevel(1), 100);
+      expect(xpNeededForLevel(2), 300);
+      expect(levelFromXp(0), 1);
+      expect(levelFromXp(99), 1);
+      expect(levelFromXp(100), 1);
+      expect(levelFromXp(299), 1);
+      expect(levelFromXp(300), 2);
+      // 每 5 级晋一段：1=雾芽 6=浅湾 ... 41=时屿
+      expect(rankForLevel(1).index, 1);
+      expect(rankForLevel(5).index, 1);
+      expect(rankForLevel(6).index, 2);
+      expect(rankForLevel(11).index, 3);
+      expect(rankForLevel(41).index, 9);
+      expect(rankForLevel(99).index, 9);
+      expect(unlockedRankCount(1), 1);
+      expect(unlockedRankCount(6), 2);
+      expect(unlockedRankCount(41), 9);
+    });
+
+    test('成就全解锁：任务数/番茄/段位达标', () {
+      const snapshot = StatsSnapshot(
+        totalPomodoros: 100,
+        totalMinutes: 1000,
+        weekPomodoros: 3,
+        weekMinutes: 75,
+        last7Days: [0, 0, 0, 0, 0, 0, 10],
+        totalTasksDone: 100,
+        streakDays: 7,
+        rankIndex: 9,
+        todayTotal: 3,
+        todayDone: 2,
+      );
+      final achievements = buildAchievements(snapshot);
+      expect(
+        achievements.where((a) => a.unlocked),
+        hasLength(achievements.length),
+      );
+    });
+
+    test('成就进度与未解锁状态', () {
+      const snapshot = StatsSnapshot(
+        totalPomodoros: 0,
+        totalMinutes: 0,
+        weekPomodoros: 0,
+        weekMinutes: 0,
+        last7Days: [0, 0, 0, 0, 0, 0, 0],
+        totalTasksDone: 0,
+        streakDays: 0,
+        rankIndex: 1,
+        todayTotal: 0,
+        todayDone: 0,
+      );
+      final achievements = buildAchievements(snapshot);
+      expect(achievements.where((a) => a.unlocked), isEmpty);
+      final first = achievements.firstWhere((a) => a.id == 'first');
+      expect(first.progress, 0);
+    });
+  });
+
+  group('格式化与图片路径', () {
+    test('formatHm 两位补零', () {
+      expect(formatHm(9, 5), '09:05');
+      expect(formatHm(23, 59), '23:59');
+      expect(formatHm(0, 0), '00:00');
+    });
+
+    test('parseHexColor 解析与兜底', () {
+      expect(parseHexColor('#9DBB9B'), const Color(0xFF9DBB9B));
+      expect(parseHexColor('9DBB9B'), const Color(0xFF9DBB9B));
+      expect(parseHexColor('zzz'), const Color(0xFF9DBB9B)); // 非法 → 兜底
+    });
+
+    test('extractImagePaths 提取本地图片路径', () {
+      const body = '[{"insert":{"image":"file:///a/b.png"}},{"insert":"\\n"}]';
+      expect(extractImagePaths(body), ['/a/b.png']);
+      expect(extractImagePaths('not json'), isEmpty);
+      expect(extractImagePaths(''), isEmpty);
     });
   });
 }

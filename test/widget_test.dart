@@ -1,7 +1,7 @@
 // 时屿 · 日程笔记 —— 冒烟测试
 import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -69,6 +69,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('可见性测试任务'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('新建笔记保存后出现在笔记列表', (WidgetTester tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async => db.close());
+
+    final nickname = ValueNotifier<String?>('小屿');
+    final themeId = ValueNotifier<String>('mist_green');
+
+    await tester.pumpWidget(
+      _buildApp(nickname: nickname, themeId: themeId, db: db),
+    );
+    await tester.pumpAndSettle();
+
+    // 进入笔记页
+    await tester.tap(find.text('笔记'));
+    await tester.pumpAndSettle();
+
+    // 打开新建笔记编辑器（取当前可见的 FAB）
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await tester.pumpAndSettle();
+
+    // 输入标题并保存
+    await tester.enterText(find.byType(TextField).first, '自动化测试笔记');
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    // UI 列表出现
+    expect(find.text('自动化测试笔记'), findsWidgets);
+    // 数据层已落库
+    final notes = await (db.select(db.notes)).get();
+    expect(notes.where((n) => n.title == '自动化测试笔记'), hasLength(1));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
