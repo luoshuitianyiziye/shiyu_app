@@ -345,11 +345,24 @@ class _MonthView extends StatelessWidget {
   }
 }
 
-/// 日历中的任务卡片：勾选完成 / 点击编辑
+/// 日历中的任务卡片：勾选完成 / 点击编辑 / 侧滑修改与删除
 class _CalendarTaskCard extends ConsumerWidget {
   const _CalendarTaskCard({required this.task});
 
   final TaskRow task;
+
+  /// 侧滑「删除」：确认后软删除并取消提醒
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除任务',
+      content: '「${task.title}」将被移除',
+      confirmText: '删除',
+      danger: true,
+    );
+    if (ok != true) return;
+    await ref.read(taskServiceProvider).delete(task);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -359,31 +372,44 @@ class _CalendarTaskCard extends ConsumerWidget {
         ? null
         : formatHm(task.startTime!.hour, task.startTime!.minute);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        onTap: () => showEditTaskSheet(context, task),
-        leading: Checkbox(
-          value: task.isDone,
-          activeColor: palette.primary,
-          onChanged: (_) async {
-            await ref.read(taskServiceProvider).toggle(task);
-          },
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Slidable(
+        key: ValueKey('calendar-task-${task.id}'),
+        endActionPane: buildEditDeletePane(
+          context,
+          onEdit: () => showEditTaskSheet(context, task),
+          onDelete: () => _delete(context, ref),
         ),
-        title: Text(
-          task.title,
-          style: TextStyle(
-            fontSize: 14,
-            color: task.isDone ? palette.textSecondary : palette.textPrimary,
-            decoration: task.isDone ? TextDecoration.lineThrough : null,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            '${time ?? '未设时段'} · ${q.name}'
-            '${task.repeatRule == 'none' ? '' : ' · 重复'}',
-            style: TextStyle(fontSize: 11, color: palette.textSecondary),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            onTap: () => showEditTaskSheet(context, task),
+            leading: Checkbox(
+              value: task.isDone,
+              activeColor: palette.primary,
+              onChanged: (_) async {
+                await ref.read(taskServiceProvider).toggle(task);
+              },
+            ),
+            title: Text(
+              task.title,
+              style: TextStyle(
+                fontSize: 14,
+                color: task.isDone
+                    ? palette.textSecondary
+                    : palette.textPrimary,
+                decoration: task.isDone ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '${time ?? '未设时段'} · ${q.name}'
+                '${task.repeatRule == 'none' ? '' : ' · 重复'}',
+                style: TextStyle(fontSize: 11, color: palette.textSecondary),
+              ),
+            ),
           ),
         ),
       ),
