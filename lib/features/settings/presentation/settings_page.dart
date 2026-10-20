@@ -7,15 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
-import '../../../core/backup/backup_service.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
-import '../../../core/notifications/notification_service.dart';
+import '../../../core/storage/custom_noise.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
-import '../../../core/storage/custom_noise.dart';
 import '../../focus/data/white_noise.dart';
+import '../application/settings_service.dart';
 
 /// 设置页：番茄钟参数 / 每日收尾提醒时间 / 默认白噪音
 class SettingsPage extends ConsumerWidget {
@@ -49,8 +48,8 @@ class SettingsPage extends ConsumerWidget {
                     max: 60,
                     step: 5,
                     onChanged: (v) => ref
-                        .read(databaseProvider)
-                        .updateSettings(focusMinutes: v),
+                        .read(settingsServiceProvider)
+                        .update(focusMinutes: v),
                   ),
                   _Divider(palette),
                   _StepperRow(
@@ -61,8 +60,8 @@ class SettingsPage extends ConsumerWidget {
                     max: 20,
                     step: 5,
                     onChanged: (v) => ref
-                        .read(databaseProvider)
-                        .updateSettings(shortBreakMinutes: v),
+                        .read(settingsServiceProvider)
+                        .update(shortBreakMinutes: v),
                   ),
                   _Divider(palette),
                   _StepperRow(
@@ -73,8 +72,8 @@ class SettingsPage extends ConsumerWidget {
                     max: 40,
                     step: 5,
                     onChanged: (v) => ref
-                        .read(databaseProvider)
-                        .updateSettings(longBreakMinutes: v),
+                        .read(settingsServiceProvider)
+                        .update(longBreakMinutes: v),
                   ),
                 ],
               ),
@@ -197,20 +196,10 @@ class SettingsPage extends ConsumerWidget {
     );
     if (picked == null || !context.mounted) return;
 
-    final db = ref.read(databaseProvider);
-    await db.updateSettings(
-      endOfDayHour: picked.hour,
-      endOfDayMinute: picked.minute,
-    );
-    // 用最新未完成任务数重建收尾提醒
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final count = await db.unfinishedCountForDate(today);
-    await NotificationService.instance.scheduleDailyEndOfDay(
-      hour: picked.hour,
-      minute: picked.minute,
-      unfinishedCount: count,
-    );
+    // 更新时间并用最新未完成数重建系统通知（编排在 SettingsService 内）
+    await ref
+        .read(settingsServiceProvider)
+        .updateEndOfDay(hour: picked.hour, minute: picked.minute);
     if (context.mounted) {
       FeedbackDebouncer.toast(
         context,
@@ -265,7 +254,7 @@ class SettingsPage extends ConsumerWidget {
       ],
     );
     if (picked != null && picked != current) {
-      await ref.read(databaseProvider).updateSettings(whiteNoiseId: picked);
+      await ref.read(settingsServiceProvider).updateWhiteNoise(picked);
       if (context.mounted) {
         FeedbackDebouncer.toast(context, '默认白噪音已更新', group: 'settings');
       }
@@ -412,7 +401,7 @@ class _BackupCardState extends ConsumerState<_BackupCard> {
     if (_busy) return;
     setState(() => _busy = true);
     try {
-      final ok = await BackupService.exportToFile(ref.read(databaseProvider));
+      final ok = await ref.read(settingsServiceProvider).exportBackup();
       if (!mounted) return;
       if (ok) {
         FeedbackDebouncer.toast(context, '备份已导出，恢复时选择该文件即可');
@@ -444,12 +433,9 @@ class _BackupCardState extends ConsumerState<_BackupCard> {
     try {
       final path = picked.path;
       if (path == null) throw const FormatException('无法读取所选文件');
-      final summary = await BackupService.restoreFromFile(
-        ref.read(databaseProvider),
-        File(path),
-      );
-      // 统计快照手动刷新（任务/笔记列表由 drift watch 流自动刷新）
-      ref.invalidate(statsSnapshotProvider);
+      final summary = await ref
+          .read(settingsServiceProvider)
+          .restoreBackup(File(path));
       if (mounted) {
         FeedbackDebouncer.toast(context, '恢复成功：$summary');
       }

@@ -8,9 +8,9 @@ import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../application/event_service.dart';
 import 'add_event_sheet.dart';
 
 const _weekdayNames = kWeekdayNames;
@@ -302,8 +302,7 @@ class _EventCard extends ConsumerWidget {
       danger: true,
     );
     if (ok != true) return;
-    await ref.read(databaseProvider).softDeleteEvent(event.id);
-    await ReminderCoordinator.cancelEventReminder(event.id);
+    await ref.read(eventServiceProvider).delete(event);
   }
 
   @override
@@ -394,8 +393,7 @@ class _CountdownCard extends ConsumerWidget {
       danger: true,
     );
     if (ok != true) return;
-    await ref.read(databaseProvider).softDeleteEvent(event.id);
-    await ReminderCoordinator.cancelEventReminder(event.id);
+    await ref.read(eventServiceProvider).delete(event);
   }
 
   /// 点击倒数日卡片：弹出详情小窗（事件 + 倒数日期）

@@ -7,12 +7,12 @@ import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/domain/ranks.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
-import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
-import '../../../core/domain/ranks.dart';
 import '../../growth/presentation/rank_up_dialog.dart';
+import '../application/task_service.dart';
 import '../data/quadrants.dart';
 import 'add_task_sheet.dart';
 
@@ -285,36 +285,19 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   }
 
   /// 批量恢复：仅恢复选中中的已完成任务（未完成任务不受影响）。
-  /// 循环外只重建一次收尾提醒，避免 N 个任务触发 N 次全量调度。
+  /// 编排（DB + 提醒 + 统计 + 收尾提醒）由 TaskService 统一完成。
   Future<void> _restoreSelected() async {
-    final db = ref.read(databaseProvider);
     final targets = widget.tasks
         .where((t) => t.isDone && _selected.contains(t.id))
         .toList();
     if (targets.isEmpty) return;
-    for (final task in targets) {
-      await _restoreTask(task, syncEndOfDay: false);
-    }
-    ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
+    await ref.read(taskServiceProvider).uncompleteMany(targets);
     if (mounted) _exitSelectMode();
   }
 
-  /// 恢复任务为未完成，并按开始时间重建提醒（完成/删除时取消的提醒恢复对称）。
-  /// [syncEndOfDay] 默认 true（单任务恢复时立即同步收尾提醒）；
-  /// 批量恢复传 false，由外层统一调度一次。
-  Future<void> _restoreTask(TaskRow task, {bool syncEndOfDay = true}) async {
-    final db = ref.read(databaseProvider);
-    await db.uncompleteTaskById(task.id);
-    await ReminderCoordinator.syncTaskReminder(
-      taskId: task.id,
-      title: task.title,
-      startTime: task.startTime,
-    );
-    ref.invalidate(statsSnapshotProvider);
-    if (syncEndOfDay) {
-      await rescheduleEndOfDay(db);
-    }
+  /// 恢复任务为未完成（点击已完成区条目）
+  Future<void> _restoreTask(TaskRow task) async {
+    await ref.read(taskServiceProvider).uncomplete(task);
   }
 
   /// 多选删除：确认后彻底删除（含未完成 + 已完成），并取消对应提醒。
@@ -329,14 +312,7 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
       danger: true,
     );
     if (ok != true || !mounted) return;
-    final db = ref.read(databaseProvider);
-    final ids = _selected.toList();
-    await db.hardDeleteTasks(ids);
-    for (final id in ids) {
-      await ReminderCoordinator.cancelTaskReminder(id);
-    }
-    ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
+    await ref.read(taskServiceProvider).deleteMany(_selected.toList());
     if (mounted) _exitSelectMode();
   }
 
@@ -716,20 +692,16 @@ class _TaskTile extends ConsumerWidget {
   static const int _recentlyCompletedCap = 200;
 
   Future<void> _toggle(BuildContext context, WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
+    final service = ref.read(taskServiceProvider);
     try {
       if (!task.isDone) {
         _recentlyCompleted[task.id] = DateTime.now();
         if (_recentlyCompleted.length > _recentlyCompletedCap) {
           _recentlyCompleted.clear();
         }
-        final result = await db.completeTaskAndAwardXp(task);
-        await ReminderCoordinator.cancelTaskReminder(task.id);
-        ref.invalidate(statsSnapshotProvider);
-        // 未完成数变化 → 更新收尾提醒
-        await rescheduleEndOfDay(db);
+        final result = await service.toggle(task);
         if (!context.mounted) return;
-        if (result.xp <= 0) return; // 已结算过（连点/已被删除）→ 静默
+        if (result.repeated) return; // 已结算过（连点/已被删除）→ 静默
         if (result.newRank > result.oldRank) {
           await showRankUpDialog(context, kRanks[result.newRank - 1]);
         } else {
@@ -744,16 +716,7 @@ class _TaskTile extends ConsumerWidget {
             DateTime.now().difference(doneAt) < const Duration(seconds: 1)) {
           return;
         }
-        // 取消完成：恢复未完成状态，并按开始时间重建提醒
-        // （完成时已取消的提醒在此恢复，保证取消/重建对称）
-        await db.uncompleteTaskById(task.id);
-        await ReminderCoordinator.syncTaskReminder(
-          taskId: task.id,
-          title: task.title,
-          startTime: task.startTime,
-        );
-        ref.invalidate(statsSnapshotProvider);
-        await rescheduleEndOfDay(db);
+        await service.toggle(task);
       }
     } catch (e, st) {
       // DB/通知失败（右滑 dismiss 场景尤为关键）：不让卡片永久塌陷，
@@ -776,11 +739,7 @@ class _TaskTile extends ConsumerWidget {
       danger: true,
     );
     if (ok != true) return;
-    final db = ref.read(databaseProvider);
-    await db.softDeleteTask(task.id);
-    await ReminderCoordinator.cancelTaskReminder(task.id);
-    ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
+    await ref.read(taskServiceProvider).delete(task);
   }
 
   @override

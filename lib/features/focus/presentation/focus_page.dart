@@ -7,10 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/feedback/feedback_debouncer.dart';
-import '../../../core/notifications/notification_service.dart';
 import '../../../core/domain/ranks.dart';
+import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/storage/custom_noise.dart';
+import '../../settings/application/settings_service.dart';
+import '../application/focus_service.dart';
 import '../data/white_noise.dart';
 
 /// 番茄钟：专注 / 短休 / 长休 循环 + 白噪音
@@ -121,10 +122,10 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     }
     if (_noiseInitialized) return;
     // 优先用同步快照（main 启动注入并随设置流同步）；
-    // 快照尚未就绪时回退异步读取数据库。
+    // 快照尚未就绪时回退由 SettingsService 异步读取。
     final s =
         ref.read(settingsSnapshotProvider) ??
-        await ref.read(databaseProvider).ensureSettings();
+        await ref.read(settingsServiceProvider).loadSettings();
     if (!mounted) return;
     // 读设置成功后才标记已初始化：若读取失败（异常/中途销毁），
     // 下次开始仍会重新尝试按设置自动播放默认音轨
@@ -183,10 +184,8 @@ class _FocusPageState extends ConsumerState<FocusPage> {
       // 专注完成：+5 XP + 通知 + 记录专注（统计用）；跳过不结算
       if (award) {
         await ref
-            .read(databaseProvider)
-            .awardPomodoroXp(focusMinutes: _total.inMinutes);
-        await NotificationService.instance.showPomodoroDone();
-        ref.invalidate(statsSnapshotProvider);
+            .read(focusServiceProvider)
+            .awardPomodoro(focusMinutes: _total.inMinutes);
         // 轮次只在真实完成时推进（跳过不占轮次、不推进长休节奏）
         setState(() => _rounds += 1);
       }

@@ -7,8 +7,8 @@ import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/format.dart';
+import '../application/task_service.dart';
 import '../data/quadrants.dart';
 
 /// 新建任务底部弹层
@@ -99,7 +99,6 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final db = ref.read(databaseProvider);
 
     // 跨天兜底：若今日日期 provider 仍停留在昨天（后台过夜定时器延迟），
     // 先同步到今天，否则新任务（日期=今天）不会出现在列表中。
@@ -120,10 +119,11 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
     // 提前告知用户，避免「已添加」但实际无提醒的误导
     final startInPast =
         startDateTime != null && startDateTime.isBefore(DateTime.now());
+    final service = ref.read(taskServiceProvider);
 
     if (_isEdit) {
-      // 编辑：更新任务 + 重建开始提醒
-      await db.updateTask(
+      // 编辑：更新任务 + 重建开始提醒（编排在 TaskService 内）
+      await service.update(
         widget.task!.id,
         TasksCompanion(
           title: Value(title),
@@ -133,9 +133,6 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
           repeatRule: Value(_repeat),
           updatedAt: Value(DateTime.now()),
         ),
-      );
-      await ReminderCoordinator.syncTaskReminder(
-        taskId: widget.task!.id,
         title: title,
         startTime: startDateTime,
       );
@@ -150,7 +147,8 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       return;
     }
 
-    final id = await db.addTask(
+    // 新建任务（含开始提醒、统计与收尾提醒刷新）
+    await service.create(
       TasksCompanion.insert(
         title: title,
         date: today,
@@ -159,14 +157,6 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         startTime: Value(startDateTime),
         repeatRule: Value(_repeat),
       ),
-    );
-    // 今日任务数变化 → 刷新统计快照 + 收尾提醒数字
-    ref.invalidate(statsSnapshotProvider);
-    await rescheduleEndOfDay(db);
-
-    // 设置开始时段 → 到时提醒
-    await ReminderCoordinator.syncTaskReminder(
-      taskId: id,
       title: title,
       startTime: startDateTime,
     );

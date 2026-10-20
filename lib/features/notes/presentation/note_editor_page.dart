@@ -16,31 +16,9 @@ import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../application/note_service.dart';
+import '../data/note_body.dart';
 import '../data/note_image_store.dart';
-
-/// 从 Delta JSON 中提取本地图片路径列表（缩略图 / 清理用）
-List<String> extractImagePaths(String bodyJson) {
-  if (bodyJson.isEmpty) return [];
-  try {
-    final delta = jsonDecode(bodyJson) as List;
-    final paths = <String>[];
-    for (final op in delta) {
-      final data = (op as Map)['insert'];
-      if (data is Map && data.containsKey('image')) {
-        final url = data['image'] as String;
-        if (url.startsWith('file://')) {
-          paths.add(Uri.decodeComponent(url.substring('file://'.length)));
-        }
-      }
-    }
-    return paths;
-  } catch (_) {
-    return [];
-  }
-}
-
-/// 本地文件 → quill 可存储的 URL
-String localFileUrl(String path) => 'file://${path.replaceAll('\\', '/')}';
 
 /// 笔记编辑器：富文本 + 图片嵌入正文 + 可展开工具栏（中文说明小字）+ 分类
 class NoteEditorPage extends ConsumerStatefulWidget {
@@ -622,10 +600,10 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
       final bodyJson = jsonEncode(_quill.document.toDelta().toJson());
       final imagesJson = jsonEncode(extractImagePaths(bodyJson));
       final captionsJson = jsonEncode(_captions);
-      final db = ref.read(databaseProvider);
+      final service = ref.read(noteServiceProvider);
 
       if (_isNew) {
-        await db.addNote(
+        await service.create(
           NotesCompanion.insert(
             title: title,
             body: Value(bodyJson),
@@ -635,7 +613,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
           ),
         );
       } else {
-        await db.updateNote(
+        await service.update(
           widget.existing!.id,
           NotesCompanion(
             title: Value(title),

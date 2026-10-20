@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/providers.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
-import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/domain/ranks.dart';
+import '../../../core/utils/confirm_dialog.dart';
+import '../application/user_service.dart';
 
 /// 个人资料页：头像（当前段位图）/ 昵称修改 / 成长信息 / 退出登录
 class ProfilePage extends ConsumerStatefulWidget {
@@ -43,12 +43,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
     setState(() => _saving = true);
     try {
-      // 先写 DB（单一事实来源），成功后再写 prefs/更新 notifier，
-      // 避免 DB 失败时 prefs 已改导致重启后状态分叉
-      await ref.read(databaseProvider).updateUserNickname(name);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('nickname', name);
-      ref.read(nicknameNotifierProvider).value = name;
+      // 昵称三处状态（DB/prefs/notifier）由 UserService 收敛写入
+      await ref.read(userServiceProvider).updateNickname(name);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('昵称已更新')));
@@ -72,9 +68,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       danger: true,
     );
     if (ok != true || !mounted) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('nickname');
-    ref.read(nicknameNotifierProvider).value = null;
+    await ref.read(userServiceProvider).logout();
     // router redirect 会自动跳转登录页
   }
 

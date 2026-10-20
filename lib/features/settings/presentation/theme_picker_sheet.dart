@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../app/providers.dart';
 import '../../../app/theme/morandi_theme.dart';
-import '../../../core/db/db_providers.dart';
+import '../application/settings_service.dart';
 
 /// 主题选择弹层：6 套莫兰迪主题即选即生效
 Future<void> showThemePicker(BuildContext context, WidgetRef ref) {
@@ -108,11 +107,8 @@ class _ThemePickerSheet extends ConsumerWidget {
     WidgetRef ref,
     MorandiTheme theme,
   ) async {
-    ref.read(themeIdNotifierProvider).value = theme.id;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('theme_id', theme.id);
-    // 同步进设置表（云同步后随账号保存）
-    await ref.read(databaseProvider).updateSettings(themeId: theme.id);
+    // 主题三写（notifier/prefs/设置表）收敛在 SettingsService
+    await ref.read(settingsServiceProvider).selectTheme(theme.id);
     if (context.mounted) Navigator.of(context).pop();
   }
 }

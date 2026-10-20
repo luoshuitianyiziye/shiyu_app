@@ -7,10 +7,9 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
 import '../../../core/db/database.dart';
-import '../../../core/db/db_providers.dart';
-import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/remind_calc.dart';
+import '../application/event_service.dart';
 
 /// 新建日历事件底部弹层
 Future<void> showAddEventSheet(BuildContext context, {DateTime? initialDate}) {
@@ -195,8 +194,6 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
           .showSnackBar(const SnackBar(content: Text('请输入事件名称')));
       return;
     }
-    final db = ref.read(databaseProvider);
-
     final timeDateTime = _time != null
         ? DateTime(
             _date.year,
@@ -206,11 +203,12 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
             _time!.minute,
           )
         : null;
+    final service = ref.read(eventServiceProvider);
 
     if (_isEdit) {
-      // 编辑：更新事件 + 重建提醒
+      // 编辑：更新事件 + 重建提醒（编排在 EventService 内）
       final id = widget.event!.id;
-      await db.updateEvent(
+      await service.update(
         id,
         EventsCompanion(
           title: Value(title),
@@ -220,11 +218,8 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
           note: Value(_noteController.text.trim()),
           updatedAt: Value(DateTime.now()),
         ),
-      );
-      await ReminderCoordinator.syncEventReminder(
-        eventId: id,
         title: title,
-        at: _remindAt(_date, timeDateTime, _remindMinutes),
+        remindAt: _remindAt(_date, timeDateTime, _remindMinutes),
       );
 
       if (mounted) {
@@ -235,7 +230,8 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
       return;
     }
 
-    final id = await db.addEvent(
+    // 新建事件（含当天提醒调度）
+    await service.create(
       EventsCompanion.insert(
         title: title,
         date: DateTime(_date.year, _date.month, _date.day),
@@ -243,13 +239,8 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
         remindMinutes: Value(_remindMinutes),
         note: Value(_noteController.text.trim()),
       ),
-    );
-
-    // 事件当天提醒：有具体时间 → 提前 remindMinutes；全天事件 → 09:00 提前 remindMinutes
-    await ReminderCoordinator.syncEventReminder(
-      eventId: id,
       title: title,
-      at: _remindAt(_date, timeDateTime, _remindMinutes),
+      remindAt: _remindAt(_date, timeDateTime, _remindMinutes),
     );
 
     if (mounted) {

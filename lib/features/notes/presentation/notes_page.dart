@@ -14,7 +14,8 @@ import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
-import '../data/note_image_store.dart';
+import '../application/note_service.dart';
+import '../data/note_body.dart';
 import 'import_text_sheet.dart';
 import 'note_editor_page.dart';
 
@@ -270,8 +271,7 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
           .showSnackBar(const SnackBar(content: Text('请输入分类名称')));
       return;
     }
-    final db = ref.read(databaseProvider);
-    await db.addNoteCategory(name);
+    await ref.read(noteServiceProvider).addCategory(name);
     // 弹层可能已被用户下滑关闭 → 避免操作已 dispose 的 controller
     if (!mounted) return;
     _nameController.clear();
@@ -286,7 +286,7 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
       hintText: '新名称',
     );
     if (newName != null && newName.isNotEmpty && mounted) {
-      await ref.read(databaseProvider).updateNoteCategory(c.id, name: newName);
+      await ref.read(noteServiceProvider).renameCategory(c.id, newName);
     }
   }
 
@@ -299,7 +299,7 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
       danger: true,
     );
     if (ok == true) {
-      await ref.read(databaseProvider).deleteNoteCategory(c.id);
+      await ref.read(noteServiceProvider).deleteCategory(c.id);
     }
   }
 
@@ -538,11 +538,8 @@ class _NoteCard extends ConsumerWidget {
       danger: true,
     );
     if (ok != true) return;
-    await ref.read(databaseProvider).softDeleteNote(note.id);
-    // 清理正文内嵌图片的本地文件
-    for (final path in extractImagePaths(note.body)) {
-      await NoteImageStore.deleteFile(path);
-    }
+    // 删除笔记并清理正文内嵌图片的本地文件（编排在 NoteService 内）
+    await ref.read(noteServiceProvider).delete(note);
   }
 
   @override
