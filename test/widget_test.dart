@@ -1,4 +1,5 @@
 // 时屿 · 日程笔记 —— 冒烟测试
+import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,6 +44,34 @@ void main() {
     expect(find.text('我的'), findsOneWidget);
 
     // 清理：卸载组件，让 drift 流清理定时器在 fake_async 中跑完
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('今日页正常显示已添加的任务', (WidgetTester tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async => db.close());
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    await db.addTask(
+      TasksCompanion.insert(
+        title: '可见性测试任务',
+        date: today,
+        quadrant: const Value(2),
+      ),
+    );
+
+    final nickname = ValueNotifier<String?>('小屿');
+    final themeId = ValueNotifier<String>('mist_green');
+
+    await tester.pumpWidget(
+      _buildApp(nickname: nickname, themeId: themeId, db: db),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('可见性测试任务'), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });

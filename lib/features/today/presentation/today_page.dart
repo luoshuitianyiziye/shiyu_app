@@ -775,14 +775,15 @@ class _TaskTile extends ConsumerWidget {
         child: Card(
           margin: EdgeInsets.zero,
           clipBehavior: Clip.antiAlias,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 象限色条：一眼区分四象限
-              Container(width: 4, color: _quadrantColor(palette, task.quadrant)),
-              Expanded(
-                child: ListTile(
-                  onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 象限色条：一眼区分四象限
+                Container(width: 4, color: _quadrantColor(palette, task.quadrant)),
+                Expanded(
+                  child: ListTile(
+                    onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
             onLongPress: onLongPress,
             selected: selected,
             selectedTileColor: palette.accent.withValues(alpha: 0.35),
@@ -833,6 +834,7 @@ class _TaskTile extends ConsumerWidget {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
