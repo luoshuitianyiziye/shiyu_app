@@ -52,7 +52,11 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     final saved = prefs.getDouble('focus_volume');
     if (saved == null || !mounted) return;
     setState(() => _volume = saved.clamp(0.0, 1.0).toDouble());
-    await _player.setVolume(_volume);
+    try {
+      await _player.setVolume(_volume);
+    } catch (_) {
+      // 播放器已释放（页面销毁瞬间）等：忽略
+    }
   }
 
   Future<void> _saveVolume(double v) async {
@@ -151,7 +155,10 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     setState(() => _remaining -= const Duration(seconds: 1));
   }
 
-  Future<void> _onPhaseComplete({bool award = true, bool skipped = false}) async {
+  Future<void> _onPhaseComplete({
+    bool award = true,
+    bool skipped = false,
+  }) async {
     if (_completing) return; // 防重入：结算期间忽略再次调用
     _completing = true;
     try {
@@ -161,16 +168,19 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     }
   }
 
-  Future<void> _doPhaseComplete({bool award = true, bool skipped = false}) async {
+  Future<void> _doPhaseComplete({
+    bool award = true,
+    bool skipped = false,
+  }) async {
     final completedPhase = _phase; // 记录完成的是哪个阶段（切换后判断会颠倒提示）
     final noise = _currentNoise;
     final wasPlaying = _player.playing;
     if (completedPhase == _Phase.focus) {
       // 专注完成：+5 XP + 通知 + 记录专注（统计用）；跳过不结算
       if (award) {
-        await ref.read(databaseProvider).awardPomodoroXp(
-          focusMinutes: _total.inMinutes,
-        );
+        await ref
+            .read(databaseProvider)
+            .awardPomodoroXp(focusMinutes: _total.inMinutes);
         await NotificationService.instance.showPomodoroDone();
         ref.invalidate(statsSnapshotProvider);
         // 轮次只在真实完成时推进（跳过不占轮次、不推进长休节奏）
@@ -187,7 +197,11 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     final durations = _durations();
     if (!mounted) return;
     setState(() {
-      _total = Duration(minutes: _phase == _Phase.focus ? durations[0] : (_phase == _Phase.shortBreak ? durations[1] : durations[2]));
+      _total = Duration(
+        minutes: _phase == _Phase.focus
+            ? durations[0]
+            : (_phase == _Phase.shortBreak ? durations[1] : durations[2]),
+      );
       _remaining = _total;
       _running = false;
     });
@@ -199,7 +213,12 @@ class _FocusPageState extends ConsumerState<FocusPage> {
       if (completedPhase == _Phase.focus) {
         if (award) {
           // 专注完成 +5 XP（合并提示，避免连续多个番茄频繁弹窗）
-          FeedbackDebouncer.xp(context, pomodoroXp, action: '番茄完成', group: 'focus');
+          FeedbackDebouncer.xp(
+            context,
+            pomodoroXp,
+            action: '番茄完成',
+            group: 'focus',
+          );
         } else {
           FeedbackDebouncer.toast(context, '已跳过本次专注，不结算经验', group: 'focus');
         }
@@ -234,12 +253,12 @@ class _FocusPageState extends ConsumerState<FocusPage> {
 
   /// 自定义音轨的运行时对象（id 前缀 custom: 便于与内置音轨区分）
   WhiteNoiseTrack _customTrack(CustomNoiseItem item) => WhiteNoiseTrack(
-        id: 'custom:${item.path}',
-        name: item.name,
-        asset: '',
-        icon: Icons.audiotrack,
-        customPath: item.path,
-      );
+    id: 'custom:${item.path}',
+    name: item.name,
+    asset: '',
+    icon: Icons.audiotrack,
+    customPath: item.path,
+  );
 
   /// 播放指定音轨。
   /// 关键：just_audio 的 play() 返回的 Future 要等播放结束/停止才完成，
@@ -346,8 +365,11 @@ class _FocusPageState extends ConsumerState<FocusPage> {
     // 保持设置流活跃（默认白噪音/番茄时长就绪；修复首次开始时 .value 为空）
     ref.watch(settingsStreamProvider);
     // 用户上传的自定义音轨（上传/删除后 invalidate 自动刷新）
-    final customNoise = ref.watch(customNoiseProvider).value ?? const <CustomNoiseItem>[];
-    final progress = _total.inSeconds == 0 ? 0.0 : _remaining.inSeconds / _total.inSeconds;
+    final customNoise =
+        ref.watch(customNoiseProvider).value ?? const <CustomNoiseItem>[];
+    final progress = _total.inSeconds == 0
+        ? 0.0
+        : _remaining.inSeconds / _total.inSeconds;
     final isFocus = _phase == _Phase.focus;
 
     return Scaffold(
@@ -423,7 +445,10 @@ class _FocusPageState extends ConsumerState<FocusPage> {
                       const SizedBox(height: 4),
                       Text(
                         _running ? '保持专注…' : '点击开始',
-                        style: TextStyle(fontSize: 14, color: palette.textSecondary),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: palette.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -447,8 +472,12 @@ class _FocusPageState extends ConsumerState<FocusPage> {
                 onPressed: _running ? _pause : _start,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(120, 56),
-                  backgroundColor: isFocus ? palette.primary : palette.primaryDark,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  backgroundColor: isFocus
+                      ? palette.primary
+                      : palette.primaryDark,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
                 ),
                 child: Text(
                   _running ? '暂停' : '开始',
@@ -522,11 +551,17 @@ class _FocusPageState extends ConsumerState<FocusPage> {
               }),
               for (final item in customNoise) _buildCustomChip(item),
               ActionChip(
-                avatar: Icon(Icons.upload_file, size: 16, color: palette.primaryDark),
+                avatar: Icon(
+                  Icons.upload_file,
+                  size: 16,
+                  color: palette.primaryDark,
+                ),
                 label: const Text('上传音频'),
                 onPressed: _uploadCustomNoise,
                 backgroundColor: palette.accent.withValues(alpha: 0.3),
-                side: BorderSide(color: palette.primaryDark.withValues(alpha: 0.4)),
+                side: BorderSide(
+                  color: palette.primaryDark.withValues(alpha: 0.4),
+                ),
                 labelStyle: TextStyle(fontSize: 13, color: palette.primaryDark),
               ),
             ],

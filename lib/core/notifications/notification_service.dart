@@ -15,7 +15,8 @@ class NotificationService {
 
   static final NotificationService instance = NotificationService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
   static const int _endOfDayId = 999001;
@@ -49,11 +50,13 @@ class NotificationService {
     // 权限
     await _plugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.requestNotificationsPermission();
     await _plugin
         .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
+          IOSFlutterLocalNotificationsPlugin
+        >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
@@ -108,7 +111,11 @@ class NotificationService {
   }
 
   /// 立即展示一条通知（番茄完成等）
-  Future<void> showNow({required int id, required String title, required String body}) async {
+  Future<void> showNow({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
     if (!_initialized) return;
     await _plugin.show(
       id: id,
@@ -119,11 +126,8 @@ class NotificationService {
   }
 
   /// 番茄专注完成提醒（固定 id，调用方无需关心编号）
-  Future<void> showPomodoroDone() => showNow(
-        id: 888001,
-        title: '专注完成',
-        body: '干得漂亮！休息一下吧（+5 XP）',
-      );
+  Future<void> showPomodoroDone() =>
+      showNow(id: 888001, title: '专注完成', body: '干得漂亮！休息一下吧（+5 XP）');
 
   /// 每日收尾提醒：每天固定时间提醒未完成任务（[unfinishedCount] 实时数量）
   Future<void> scheduleDailyEndOfDay({
@@ -162,7 +166,14 @@ class NotificationService {
   /// 下一个指定时刻（用于每日重复）
   tz.TZDateTime _nextInstanceOf(int hour, int minute) {
     final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    var scheduled = tz.TZDateTime(
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
+    );
     if (scheduled.isBefore(now)) {
       scheduled = scheduled.add(const Duration(days: 1));
     }

@@ -211,9 +211,9 @@ class _MorandiTimePickerState extends State<_MorandiTimePicker> {
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton(
-                  onPressed: () => Navigator.of(context).pop(
-                    TimeOfDay(hour: _hour, minute: _minute),
-                  ),
+                  onPressed: () =>
+                      Navigator.of(context)
+                          .pop(TimeOfDay(hour: _hour, minute: _minute)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),

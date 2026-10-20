@@ -37,9 +37,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _saveNickname() async {
     final name = _nicknameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('昵称不能为空')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('昵称不能为空')));
       return;
     }
     setState(() => _saving = true);
@@ -51,15 +50,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       await prefs.setString('nickname', name);
       ref.read(nicknameNotifierProvider).value = name;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('昵称已更新')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('昵称已更新')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败：$e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('保存失败：$e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -127,7 +124,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       const SizedBox(height: 2),
                       Text(
                         '${user.xpTotal} XP · 连续 ${user.streakDays} 天',
-                        style: TextStyle(fontSize: 12, color: palette.textSecondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: palette.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -193,7 +193,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     _InfoRow(
                       icon: Icons.task_alt_outlined,
                       label: '加入时屿',
-                      value: DateFormat('yyyy年M月d日', 'zh_CN').format(user.createdAt),
+                      value: DateFormat(
+                        'yyyy年M月d日',
+                        'zh_CN',
+                      ).format(user.createdAt),
                     ),
                   ],
                 ),
@@ -248,7 +251,10 @@ class _InfoRow extends StatelessWidget {
 
     return ListTile(
       leading: Icon(icon, color: palette.primaryDark, size: 24),
-      title: Text(label, style: TextStyle(fontSize: 14, color: palette.textSecondary)),
+      title: Text(
+        label,
+        style: TextStyle(fontSize: 14, color: palette.textSecondary),
+      ),
       trailing: Text(
         value,
         style: TextStyle(

@@ -48,7 +48,9 @@ class _ThemePickerSheet extends ConsumerWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Theme.of(context).extension<MorandiPalette>()!.textPrimary,
+                color: Theme.of(context)
+                    .extension<MorandiPalette>()!
+                    .textPrimary,
               ),
             ),
             const SizedBox(height: 12),
@@ -81,14 +83,16 @@ class _ThemePickerSheet extends ConsumerWidget {
                   style: TextStyle(color: theme.palette.textPrimary),
                 ),
                 subtitle: Text(
-                  theme.id == 'mist_green' ? '默认 · 清雅淡绿' : '莫兰迪 · ${theme.name}色系',
-                  style: TextStyle(color: theme.palette.textSecondary, fontSize: 12),
+                  theme.id == 'mist_green'
+                      ? '默认 · 清雅淡绿'
+                      : '莫兰迪 · ${theme.name}色系',
+                  style: TextStyle(
+                    color: theme.palette.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
                 trailing: selected
-                    ? Icon(
-                        Icons.check_circle,
-                        color: theme.palette.primaryDark,
-                      )
+                    ? Icon(Icons.check_circle, color: theme.palette.primaryDark)
                     : null,
                 onTap: () => _select(context, ref, theme),
               );

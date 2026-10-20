@@ -74,20 +74,22 @@ final statsSnapshotProvider = FutureProvider<StatsSnapshot>((ref) async {
   // 本周（周一起）
   final weekStart = today.subtract(Duration(days: today.weekday - 1));
   final weekEnd = today.add(const Duration(days: 1));
-  final sessionsThisWeek =
-      await db.pomodoroSessionsBetween(weekStart, weekEnd);
+  final sessionsThisWeek = await db.pomodoroSessionsBetween(weekStart, weekEnd);
 
   // 累计：用足够早的起始日期兜底（App 上线前的时间不可能有记录），
   // 避免硬编码年份在未来失效导致统计漏掉早期数据
-  final allSessions =
-      await db.pomodoroSessionsBetween(DateTime(1970), weekEnd);
+  final allSessions = await db.pomodoroSessionsBetween(DateTime(1970), weekEnd);
 
   // 最近 7 天每日番茄数（索引 0 = 6 天前）
   final last7 = List<int>.filled(7, 0);
   final sevenDaysAgo = today.subtract(const Duration(days: 6));
   final recent = await db.pomodoroSessionsBetween(sevenDaysAgo, weekEnd);
   for (final s in recent) {
-    final day = DateTime(s.completedAt.year, s.completedAt.month, s.completedAt.day);
+    final day = DateTime(
+      s.completedAt.year,
+      s.completedAt.month,
+      s.completedAt.day,
+    );
     final diff = day.difference(sevenDaysAgo).inDays;
     if (diff >= 0 && diff < 7) last7[diff]++;
   }

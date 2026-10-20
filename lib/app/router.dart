@@ -29,44 +29,45 @@ class AppRouter {
       },
       routes: [
         GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
-        GoRoute(
-          path: '/rank-wall',
-          builder: (_, _) => const RankWallPage(),
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (_, _) => const SettingsPage(),
-        ),
-        GoRoute(
-          path: '/stats',
-          builder: (_, _) => const StatsPage(),
-        ),
+        GoRoute(path: '/rank-wall', builder: (_, _) => const RankWallPage()),
+        GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+        GoRoute(path: '/stats', builder: (_, _) => const StatsPage()),
         GoRoute(
           path: '/achievements',
           builder: (_, _) => const AchievementsPage(),
         ),
-        GoRoute(
-          path: '/profile',
-          builder: (_, _) => const ProfilePage(),
-        ),
+        GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               HomeShell(navigationShell: navigationShell),
           branches: [
             StatefulShellBranch(
-              routes: [GoRoute(path: '/today', builder: (_, _) => const TodayPage())],
+              routes: [
+                GoRoute(path: '/today', builder: (_, _) => const TodayPage()),
+              ],
             ),
             StatefulShellBranch(
-              routes: [GoRoute(path: '/focus', builder: (_, _) => const FocusPage())],
+              routes: [
+                GoRoute(path: '/focus', builder: (_, _) => const FocusPage()),
+              ],
             ),
             StatefulShellBranch(
-              routes: [GoRoute(path: '/calendar', builder: (_, _) => const CalendarPage())],
+              routes: [
+                GoRoute(
+                  path: '/calendar',
+                  builder: (_, _) => const CalendarPage(),
+                ),
+              ],
             ),
             StatefulShellBranch(
-              routes: [GoRoute(path: '/notes', builder: (_, _) => const NotesPage())],
+              routes: [
+                GoRoute(path: '/notes', builder: (_, _) => const NotesPage()),
+              ],
             ),
             StatefulShellBranch(
-              routes: [GoRoute(path: '/me', builder: (_, _) => const GrowthPage())],
+              routes: [
+                GoRoute(path: '/me', builder: (_, _) => const GrowthPage()),
+              ],
             ),
           ],
         ),

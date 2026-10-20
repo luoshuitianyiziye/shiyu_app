@@ -1,15 +1,20 @@
 // 时屿 · 日程笔记 —— 核心业务链路测试（数据层）
 //
-// 覆盖三条发布关键链路：
+// 覆盖发布关键链路：
 // 1. 完成任务 → XP 结算 + 等级/段位推进（含防重复结算）
 // 2. 重复任务每日滚动（每天/工作日/每周规则）
 // 3. 事件提前提醒时刻计算（提前提醒 + 已过时刻自动修正）
+// 4. 导入文本切分与笔记正文
+// 5. 数据备份导出 / 恢复
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:drift/drift.dart' hide Column;
 import 'package:drift/native.dart';
+import 'package:flutter_quill/flutter_quill.dart' show Document;
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:shiyu_app/core/backup/backup_service.dart';
 import 'package:shiyu_app/core/db/database.dart';
 import 'package:shiyu_app/core/utils/remind_calc.dart';
 import 'package:shiyu_app/features/growth/data/ranks.dart';
@@ -39,7 +44,8 @@ void main() {
           difficulty: const Value(3), // 困难：系数 2.0
         ),
       );
-      final task = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      final task = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
 
       final userBefore = await db.ensureUser();
       final result = await db.completeTaskAndAwardXp(task);
@@ -64,7 +70,8 @@ void main() {
           difficulty: const Value(2),
         ),
       );
-      final task = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      final task = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
 
       final first = await db.completeTaskAndAwardXp(task);
       expect(first.xp, greaterThan(0));
@@ -87,7 +94,8 @@ void main() {
           difficulty: const Value(2),
         ),
       );
-      var task = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      var task = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
 
       // 第一次完成：结算 XP
       final first = await db.completeTaskAndAwardXp(task);
@@ -95,8 +103,9 @@ void main() {
       final userAfterFirst = await db.ensureUser();
 
       // 取消完成（XP 不回收获益，但任务回到未完成）
-      await db.uncompleteTask(task);
-      final refreshed = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      await db.uncompleteTaskById(task.id);
+      final refreshed = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
       expect(refreshed.isDone, isFalse);
       expect(refreshed.xpAwarded, greaterThan(0)); // 保留历史结算标记
 
@@ -108,7 +117,8 @@ void main() {
       expect(userAfterSecond.xpTotal, userAfterFirst.xpTotal);
 
       // 任务恢复为已完成
-      final done = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      final done = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
       expect(done.isDone, isTrue);
     });
 
@@ -124,7 +134,8 @@ void main() {
           difficulty: const Value(1),
         ),
       );
-      final task = (await db.tasksForDate(todayDay)).firstWhere((t) => t.id == id);
+      final task = (await db.tasksForDate(todayDay))
+          .firstWhere((t) => t.id == id);
       final userBefore = await db.ensureUser();
 
       await db.softDeleteTask(id); // 已删除任务不可结算
@@ -358,6 +369,63 @@ void main() {
         decoded.map((op) => (op as Map)['insert']).join(),
         contains('条目二'),
       );
+    });
+
+    test('生成的正文可被富文本编辑器解析（Document.fromJson 不抛错）', () {
+      final body = buildEntriesBody(['账号：a', '密码：b']);
+      final doc = Document.fromJson(jsonDecode(body) as List);
+      expect(doc.toPlainText(), contains('账号：a'));
+      expect(doc.toPlainText(), contains('密码：b'));
+    });
+  });
+
+  group('数据备份与恢复', () {
+    test('导出 JSON 后清空再恢复，任务/用户数据一致', () async {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      await db.addTask(
+        TasksCompanion.insert(
+          title: '备份任务',
+          date: today,
+          quadrant: const Value(2),
+        ),
+      );
+      final userBefore = await db.ensureUser();
+      final json = await BackupService.buildBackupJson(db);
+
+      // 模拟数据丢失
+      await db.delete(db.tasks).go();
+      await db.delete(db.users).go();
+
+      final dir = await Directory.systemTemp.createTemp('shiyu_backup_test');
+      final file = File('${dir.path}/backup.json');
+      await file.writeAsString(json);
+      try {
+        final summary = await BackupService.restoreFromFile(db, file);
+        expect(summary, contains('任务 1'));
+      } finally {
+        await file.delete();
+        await dir.delete();
+      }
+
+      final tasks = await db.tasksForDate(today);
+      expect(tasks.where((t) => t.title == '备份任务'), hasLength(1));
+      expect((await db.ensureUser()).xpTotal, userBefore.xpTotal);
+    });
+
+    test('恢复非时屿备份文件抛 FormatException', () async {
+      final dir = await Directory.systemTemp.createTemp('shiyu_backup_bad');
+      final file = File('${dir.path}/bad.json');
+      await file.writeAsString('{"foo": 1}');
+      try {
+        await expectLater(
+          BackupService.restoreFromFile(db, file),
+          throwsA(isA<FormatException>()),
+        );
+      } finally {
+        await file.delete();
+        await dir.delete();
+      }
     });
   });
 }

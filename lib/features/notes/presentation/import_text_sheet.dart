@@ -46,9 +46,8 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
     if (_saving) return;
     final entries = _entries;
     if (entries.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('没有可导入的文本')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('没有可导入的文本')));
       return;
     }
     setState(() => _saving = true);
@@ -58,7 +57,9 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
       final title = _titleController.text.trim().isEmpty
           ? defaultTitle
           : _titleController.text.trim();
-      await ref.read(databaseProvider).addNote(
+      await ref
+          .read(databaseProvider)
+          .addNote(
             NotesCompanion.insert(
               title: title,
               body: Value(buildEntriesBody(entries)),
@@ -71,9 +72,8 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导入失败：$e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导入失败：$e')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -86,7 +86,9 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
     final entries = _entries;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: Column(
@@ -139,7 +141,11 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.auto_awesome_outlined, size: 16, color: palette.primaryDark),
+                Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 16,
+                  color: palette.primaryDark,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '识别到 ${entries.length} 条',
@@ -185,7 +191,10 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
                     if (entries.length > 3)
                       Text(
                         '… 还有 ${entries.length - 3} 条',
-                        style: TextStyle(fontSize: 11, color: palette.textSecondary),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: palette.textSecondary,
+                        ),
                       ),
                   ],
                 ),
@@ -194,7 +203,9 @@ class _ImportTextSheetState extends ConsumerState<_ImportTextSheet> {
             const SizedBox(height: 20),
             FilledButton(
               onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
               child: Text(
                 _saving ? '导入中…' : '导入为笔记',
                 style: const TextStyle(fontSize: 16),

@@ -52,8 +52,11 @@ class StatsPage extends ConsumerWidget {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_view_week_outlined,
-                        color: palette.primaryDark, size: 26),
+                    Icon(
+                      Icons.calendar_view_week_outlined,
+                      color: palette.primaryDark,
+                      size: 26,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -71,7 +74,9 @@ class StatsPage extends ConsumerWidget {
                           Text(
                             '${s.weekPomodoros} 个番茄 · 约 ${s.weekMinutes} 分钟',
                             style: TextStyle(
-                                fontSize: 12, color: palette.textSecondary),
+                              fontSize: 12,
+                              color: palette.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -102,10 +107,7 @@ class StatsPage extends ConsumerWidget {
             Card(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-                child: _SevenDayChart(
-                  counts: s.last7Days,
-                  palette: palette,
-                ),
+                child: _SevenDayChart(counts: s.last7Days, palette: palette),
               ),
             ),
             const SizedBox(height: 20),
@@ -118,8 +120,11 @@ class StatsPage extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.today_outlined,
-                            color: palette.primaryDark, size: 26),
+                        Icon(
+                          Icons.today_outlined,
+                          color: palette.primaryDark,
+                          size: 26,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -159,7 +164,9 @@ class StatsPage extends ConsumerWidget {
                           ? '去「今日」页添加任务开始记录吧'
                           : '已完成 ${(s.todayRate * 100).round()}%',
                       style: TextStyle(
-                          fontSize: 12, color: palette.textSecondary),
+                        fontSize: 12,
+                        color: palette.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -289,7 +296,9 @@ class _SevenDayChart extends StatelessWidget {
                     _dayLabel(today.subtract(Duration(days: 6 - i))),
                     style: TextStyle(
                       fontSize: 10,
-                      color: i == 6 ? palette.primaryDark : palette.textSecondary,
+                      color: i == 6
+                          ? palette.primaryDark
+                          : palette.textSecondary,
                       fontWeight: i == 6 ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
@@ -304,7 +313,9 @@ class _SevenDayChart extends StatelessWidget {
   }
 
   static String _dayLabel(DateTime day) {
-    if (day.month == DateTime.now().month) return '周${kWeekdayNames[day.weekday - 1]}';
+    if (day.month == DateTime.now().month) {
+      return '周${kWeekdayNames[day.weekday - 1]}';
+    }
     return '${day.month}/${day.day}';
   }
 }

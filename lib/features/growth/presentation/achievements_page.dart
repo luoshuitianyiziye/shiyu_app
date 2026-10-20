@@ -21,8 +21,7 @@ class AchievementsPage extends ConsumerWidget {
         error: (e, _) => Center(child: Text('加载失败：$e')),
         data: (s) {
           final achievements = buildAchievements(s);
-          final unlockedCount =
-              achievements.where((a) => a.unlocked).length;
+          final unlockedCount = achievements.where((a) => a.unlocked).length;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -33,8 +32,11 @@ class AchievementsPage extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.emoji_events,
-                          color: palette.primaryDark, size: 32),
+                      Icon(
+                        Icons.emoji_events,
+                        color: palette.primaryDark,
+                        size: 32,
+                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -130,17 +132,16 @@ class _AchievementCard extends StatelessWidget {
                       if (unlocked)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: palette.primary,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Text(
                             '已达成',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
-                            ),
+                            style: TextStyle(fontSize: 10, color: Colors.white),
                           ),
                         ),
                     ],

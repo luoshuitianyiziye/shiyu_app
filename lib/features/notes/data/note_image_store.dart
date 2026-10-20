@@ -20,7 +20,10 @@ class NoteImageStore {
     final dir = Directory(p.join(docs.path, 'note_images'));
     await dir.create(recursive: true);
 
-    final target = p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}.jpg');
+    final target = p.join(
+      dir.path,
+      '${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
     String? result;
     try {
       result = (await FlutterImageCompress.compressAndGetFile(
@@ -29,8 +32,7 @@ class NoteImageStore {
         quality: 80,
         minWidth: 1600,
         minHeight: 1600,
-      ))
-          ?.path;
+      ))?.path;
     } catch (_) {
       result = null;
     }

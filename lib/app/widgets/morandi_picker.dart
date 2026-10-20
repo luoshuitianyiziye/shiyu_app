@@ -15,6 +15,7 @@ class PickerItem<T> {
   final T value;
   final String label;
   final IconData? icon;
+
   /// 图标底色（十六进制/Color）
   final Color? color;
   final String? subtitle;
@@ -180,10 +181,7 @@ class MorandiOptionField extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: dense ? 8 : 12,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: dense ? 8 : 12),
         decoration: BoxDecoration(
           color: palette.accent.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(12),

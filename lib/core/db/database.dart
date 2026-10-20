@@ -17,6 +17,7 @@ class Users extends Table {
   IntColumn get level => integer().withDefault(const Constant(1))();
   IntColumn get rank => integer().withDefault(const Constant(1))();
   IntColumn get streakDays => integer().withDefault(const Constant(0))();
+
   /// 历史最高累计完成任务数（只增不减：成就/统计不随取消完成回退）
   IntColumn get maxTasksDone => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -27,17 +28,23 @@ class Users extends Table {
 class Tasks extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();
+
   /// 四象限 1=重要紧急 2=重要不紧急 3=紧急不重要 4=不重要不紧急
   IntColumn get quadrant => integer().withDefault(const Constant(1))();
+
   /// 任务日期（当天零点）
   DateTimeColumn get date => dateTime()();
+
   /// 时段开始（可为空）
   DateTimeColumn get startTime => dateTime().nullable()();
   DateTimeColumn get endTime => dateTime().nullable()();
+
   /// 难度 1=简单 2=普通 3=困难
   IntColumn get difficulty => integer().withDefault(const Constant(2))();
+
   /// 重复规则 none/daily/weekdays/weekly
   TextColumn get repeatRule => text().withDefault(const Constant('none'))();
+
   /// 重复任务最近一次滚动（复制到当日）的时间（去重用）
   DateTimeColumn get lastRepeatedDate => dateTime().nullable()();
   BoolColumn get isDone => boolean().withDefault(const Constant(false))();
@@ -54,6 +61,7 @@ class Tasks extends Table {
 class XpLogs extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get amount => integer()();
+
   /// 来源：完成任务/番茄专注/连胜奖励
   TextColumn get reason => text()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -66,6 +74,7 @@ class Events extends Table {
   TextColumn get title => text()();
   DateTimeColumn get date => dateTime()();
   DateTimeColumn get time => dateTime().nullable()();
+
   /// 提前提醒分钟数
   IntColumn get remindMinutes => integer().withDefault(const Constant(15))();
   TextColumn get note => text().withDefault(const Constant(''))();
@@ -79,6 +88,7 @@ class Events extends Table {
 class NoteCategories extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
+
   /// 分类颜色（十六进制字符串，如 #9DBB9B）
   TextColumn get color => text().withDefault(const Constant('#9DBB9B'))();
   IntColumn get sort => integer().withDefault(const Constant(0))();
@@ -91,14 +101,19 @@ class NoteCategories extends Table {
 class Notes extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get title => text()();
+
   /// flutter_quill Delta JSON
   TextColumn get body => text().withDefault(const Constant(''))();
+
   /// JSON 字符串数组：本地图片路径
   TextColumn get images => text().withDefault(const Constant('[]'))();
+
   /// JSON 字符串数组：标签
   TextColumn get tags => text().withDefault(const Constant('[]'))();
+
   /// JSON 对象：本地图片路径 → 图片说明文字
   TextColumn get imageCaptions => text().withDefault(const Constant('{}'))();
+
   /// 所属分类 id（可空 = 未分类）
   IntColumn get categoryId => integer().nullable()();
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
@@ -127,122 +142,130 @@ class Settings extends Table {
 @DataClassName('PomodoroSessionRow')
 class PomodoroSessions extends Table {
   IntColumn get id => integer().autoIncrement()();
+
   /// 本次实际专注分钟数（取完成时设置）
   IntColumn get focusMinutes => integer()();
-  DateTimeColumn get completedAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get completedAt =>
+      dateTime().withDefault(currentDateAndTime)();
 }
 
 // ============ 数据库 ============
 
-@DriftDatabase(tables: [
-  Users,
-  Tasks,
-  XpLogs,
-  Events,
-  Notes,
-  NoteCategories,
-  Settings,
-  PomodoroSessions,
-])
+@DriftDatabase(
+  tables: [
+    Users,
+    Tasks,
+    XpLogs,
+    Events,
+    Notes,
+    NoteCategories,
+    Settings,
+    PomodoroSessions,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   /// [executor] 可注入（测试用内存库）；默认使用 drift_flutter 原生 SQLite
   AppDatabase([QueryExecutor? executor])
-      : super(executor ?? driftDatabase(name: 'shiyu'));
+    : super(executor ?? driftDatabase(name: 'shiyu'));
 
   @override
   int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-          await _createIndexes();
-        },
-        onUpgrade: (m, from, to) async {
-          // v1 → v2：新增笔记分类表 + 笔记分类字段
-          if (from < 2) {
-            await m.createTable(noteCategories);
-            await m.addColumn(notes, notes.categoryId);
-          }
-          // v2 → v3：新增番茄专注记录表（统计用）
-          if (from < 3) {
-            await m.createTable(pomodoroSessions);
-          }
-          // v3 → v4：任务新增「重复滚动时间」字段（每日重复任务去重用）
-          if (from < 4) {
-            await m.addColumn(tasks, tasks.lastRepeatedDate);
-          }
-          // v4 → v5：笔记新增「图片说明」字段（图片路径 → 说明文字）
-          if (from < 5) {
-            await m.addColumn(notes, notes.imageCaptions);
-          }
-          // v5 → v6：settings 表加主键（防止重复行导致 watchSingle 崩溃）
-          if (from < 6) {
-            // 先清理历史可能存在的重复行（每个 id 只保留 rowid 最小的一行）
-            await customStatement(
-              'DELETE FROM settings WHERE rowid NOT IN '
-              '(SELECT MIN(rowid) FROM settings GROUP BY id);',
-            );
-            // 重建表以应用主键约束（SQLite 修改主键需重建）
-            await customStatement(
-              'CREATE TABLE settings_new ('
-              'id INTEGER NOT NULL DEFAULT 1 PRIMARY KEY, '
-              'theme_id TEXT NOT NULL DEFAULT \'mist_green\', '
-              'white_noise_id TEXT NOT NULL DEFAULT \'rain\', '
-              'end_of_day_hour INTEGER NOT NULL DEFAULT 21, '
-              'end_of_day_minute INTEGER NOT NULL DEFAULT 30, '
-              'focus_minutes INTEGER NOT NULL DEFAULT 25, '
-              'short_break_minutes INTEGER NOT NULL DEFAULT 5, '
-              'long_break_minutes INTEGER NOT NULL DEFAULT 15);',
-            );
-            await customStatement(
-              'INSERT OR IGNORE INTO settings_new (id, theme_id, white_noise_id, '
-              'end_of_day_hour, end_of_day_minute, focus_minutes, '
-              'short_break_minutes, long_break_minutes) '
-              'SELECT id, theme_id, white_noise_id, end_of_day_hour, '
-              'end_of_day_minute, focus_minutes, short_break_minutes, '
-              'long_break_minutes FROM settings;',
-            );
-            await customStatement('DROP TABLE settings;');
-            await customStatement('ALTER TABLE settings_new RENAME TO settings;');
-          }
-          // v6 → v7：users 新增「历史最高完成任务数」（成就不随取消完成回退）
-          if (from < 7) {
-            await m.addColumn(users, users.maxTasksDone);
-          }
-          // v7 → v8：常用查询索引（日期过滤 / 笔记排序 / 番茄统计 / 重复滚动）
-          if (from < 8) {
-            await _createIndexes();
-          }
-          // v8 → v9：清理旧版「每日复制副本」逻辑产生的重复任务副本。
-          // 这些副本（repeatRule='none'、与仍在重复的任务同标题）只是历史
-          // bug 产物，没有展示入口，留在库里只会让今日页出现重复任务。
-          if (from < 9) {
-            final now = DateTime.now();
-            final today = DateTime(now.year, now.month, now.day);
-            final repeatTasks = await (select(tasks)
-                  ..where((t) =>
-                      t.repeatRule.isNotValue('none') & t.deleted.equals(false)))
+    onCreate: (m) async {
+      await m.createAll();
+      await _createIndexes();
+    },
+    onUpgrade: (m, from, to) async {
+      // v1 → v2：新增笔记分类表 + 笔记分类字段
+      if (from < 2) {
+        await m.createTable(noteCategories);
+        await m.addColumn(notes, notes.categoryId);
+      }
+      // v2 → v3：新增番茄专注记录表（统计用）
+      if (from < 3) {
+        await m.createTable(pomodoroSessions);
+      }
+      // v3 → v4：任务新增「重复滚动时间」字段（每日重复任务去重用）
+      if (from < 4) {
+        await m.addColumn(tasks, tasks.lastRepeatedDate);
+      }
+      // v4 → v5：笔记新增「图片说明」字段（图片路径 → 说明文字）
+      if (from < 5) {
+        await m.addColumn(notes, notes.imageCaptions);
+      }
+      // v5 → v6：settings 表加主键（防止重复行导致 watchSingle 崩溃）
+      if (from < 6) {
+        // 先清理历史可能存在的重复行（每个 id 只保留 rowid 最小的一行）
+        await customStatement(
+          'DELETE FROM settings WHERE rowid NOT IN '
+          '(SELECT MIN(rowid) FROM settings GROUP BY id);',
+        );
+        // 重建表以应用主键约束（SQLite 修改主键需重建）
+        await customStatement(
+          'CREATE TABLE settings_new ('
+          'id INTEGER NOT NULL DEFAULT 1 PRIMARY KEY, '
+          'theme_id TEXT NOT NULL DEFAULT \'mist_green\', '
+          'white_noise_id TEXT NOT NULL DEFAULT \'rain\', '
+          'end_of_day_hour INTEGER NOT NULL DEFAULT 21, '
+          'end_of_day_minute INTEGER NOT NULL DEFAULT 30, '
+          'focus_minutes INTEGER NOT NULL DEFAULT 25, '
+          'short_break_minutes INTEGER NOT NULL DEFAULT 5, '
+          'long_break_minutes INTEGER NOT NULL DEFAULT 15);',
+        );
+        await customStatement(
+          'INSERT OR IGNORE INTO settings_new (id, theme_id, white_noise_id, '
+          'end_of_day_hour, end_of_day_minute, focus_minutes, '
+          'short_break_minutes, long_break_minutes) '
+          'SELECT id, theme_id, white_noise_id, end_of_day_hour, '
+          'end_of_day_minute, focus_minutes, short_break_minutes, '
+          'long_break_minutes FROM settings;',
+        );
+        await customStatement('DROP TABLE settings;');
+        await customStatement('ALTER TABLE settings_new RENAME TO settings;');
+      }
+      // v6 → v7：users 新增「历史最高完成任务数」（成就不随取消完成回退）
+      if (from < 7) {
+        await m.addColumn(users, users.maxTasksDone);
+      }
+      // v7 → v8：常用查询索引（日期过滤 / 笔记排序 / 番茄统计 / 重复滚动）
+      if (from < 8) {
+        await _createIndexes();
+      }
+      // v8 → v9：清理旧版「每日复制副本」逻辑产生的重复任务副本。
+      // 这些副本（repeatRule='none'、与仍在重复的任务同标题）只是历史
+      // bug 产物，没有展示入口，留在库里只会让今日页出现重复任务。
+      if (from < 9) {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final repeatTasks =
+            await (select(tasks)..where(
+                  (t) =>
+                      t.repeatRule.isNotValue('none') & t.deleted.equals(false),
+                ))
                 .get();
-            final titles = repeatTasks.map((t) => t.title).toSet();
-            if (titles.isNotEmpty) {
-              final copies = await (select(tasks)
-                    ..where((t) =>
+        final titles = repeatTasks.map((t) => t.title).toSet();
+        if (titles.isNotEmpty) {
+          final copies =
+              await (select(tasks)..where(
+                    (t) =>
                         t.repeatRule.equals('none') &
                         t.deleted.equals(false) &
-                        t.title.isIn(titles)))
+                        t.title.isIn(titles),
+                  ))
                   .get();
-              final staleIds = copies
-                  .where((c) => !c.date.isAfter(today))
-                  .map((c) => c.id)
-                  .toList();
-              if (staleIds.isNotEmpty) {
-                await (delete(tasks)..where((t) => t.id.isIn(staleIds))).go();
-              }
-            }
+          final staleIds = copies
+              .where((c) => !c.date.isAfter(today))
+              .map((c) => c.id)
+              .toList();
+          if (staleIds.isNotEmpty) {
+            await (delete(tasks)..where((t) => t.id.isIn(staleIds))).go();
           }
-        },
-      );
+        }
+      }
+    },
+  );
 
   /// 常用查询索引（v8 起）。数据量小时收益不明显，但可避免长期使用后
   /// 今日列表、笔记列表、收尾提醒计数、重复任务滚动退化为全表扫描。
@@ -262,11 +285,14 @@ class AppDatabase extends _$AppDatabase {
 
   // ---------- 用户 ----------
 
-  /// 保证至少存在一个用户，返回它
+  /// 保证至少存在一个用户，返回它。
+  /// 事务内 select-then-insert，避免并发（如启动与流首次加载同时调用）重复创建用户行。
   Future<UserRow> ensureUser() async {
-    final rows = await (select(users)..limit(1)).get();
-    if (rows.isNotEmpty) return rows.first;
-    return into(users).insertReturning(UsersCompanion());
+    return transaction(() async {
+      final rows = await (select(users)..limit(1)).get();
+      if (rows.isNotEmpty) return rows.first;
+      return into(users).insertReturning(UsersCompanion());
+    });
   }
 
   Stream<UserRow> watchUser() {
@@ -306,7 +332,9 @@ class AppDatabase extends _$AppDatabase {
   Future<List<TaskRow>> tasksForDate(DateTime date) async =>
       _tasksForDateQuery(date).get();
 
-  SimpleSelectStatement<$TasksTable, TaskRow> _tasksForDateQuery(DateTime date) {
+  SimpleSelectStatement<$TasksTable, TaskRow> _tasksForDateQuery(
+    DateTime date,
+  ) {
     return select(tasks)
       ..where((t) => t.date.equals(date) & t.deleted.equals(false))
       ..orderBy([
@@ -331,7 +359,9 @@ class AppDatabase extends _$AppDatabase {
   /// - 任务曾被结算过（xpAwarded > 0）且被取消完成 → 属于「重复完成」，
   ///   只恢复完成状态，**不再结算 XP、不写流水、不叠加连胜**
   ///   （完成→取消→再完成无法刷经验/连胜）
-  Future<({int xp, int oldRank, int newRank})> completeTaskAndAwardXp(TaskRow task) async {
+  Future<({int xp, int oldRank, int newRank})> completeTaskAndAwardXp(
+    TaskRow task,
+  ) async {
     var skipped = false;
     var repeated = false;
     late int xp;
@@ -339,8 +369,9 @@ class AppDatabase extends _$AppDatabase {
     late int newRank;
     await transaction(() async {
       // H2：重读最新状态，防止 UI 流刷新前连点重复结算
-      final current = await (select(tasks)..where((t) => t.id.equals(task.id)))
-          .getSingleOrNull();
+      final current = await (select(
+        tasks,
+      )..where((t) => t.id.equals(task.id))).getSingleOrNull();
       final user = await ensureUser();
       if (current == null || current.isDone || current.deleted) {
         skipped = true;
@@ -409,8 +440,9 @@ class AppDatabase extends _$AppDatabase {
       newRank = rankForLevel(newLevel).index;
       // 历史最高完成任务数：只增不减（成就/统计不随取消完成回退）
       final completedCount = await completedTaskCount();
-      final newMaxTasksDone =
-          completedCount > user.maxTasksDone ? completedCount : user.maxTasksDone;
+      final newMaxTasksDone = completedCount > user.maxTasksDone
+          ? completedCount
+          : user.maxTasksDone;
       await (update(users)..where((u) => u.id.equals(user.id))).write(
         UsersCompanion(
           xpTotal: Value(newXp),
@@ -429,27 +461,18 @@ class AppDatabase extends _$AppDatabase {
   Future<DateTime?> _lastDoneDateExcluding(int taskId) async {
     final q = selectOnly(tasks)
       ..addColumns([tasks.doneAt.max()])
-      ..where(tasks.isDone.equals(true) &
-          tasks.deleted.equals(false) &
-          tasks.id.isNotValue(taskId));
+      ..where(
+        tasks.isDone.equals(true) &
+            tasks.deleted.equals(false) &
+            tasks.id.isNotValue(taskId),
+      );
     final row = await q.getSingle();
     final dt = row.read(tasks.doneAt.max());
     if (dt == null) return null;
     return DateTime(dt.year, dt.month, dt.day);
   }
 
-  /// 取消完成（不回收经验）
-  Future<void> uncompleteTask(TaskRow task) async {
-    await (update(tasks)..where((t) => t.id.equals(task.id))).write(
-      TasksCompanion(
-        isDone: const Value(false),
-        doneAt: const Value(null),
-        updatedAt: Value(DateTime.now()),
-      ),
-    );
-  }
-
-  /// 按 id 恢复任务（已完成区多选恢复用）
+  /// 取消完成（不回收经验）。按 id 恢复，用于「已完成区」取消完成/批量恢复。
   Future<void> uncompleteTaskById(int id) async {
     await (update(tasks)..where((t) => t.id.equals(id))).write(
       TasksCompanion(
@@ -492,12 +515,14 @@ class AppDatabase extends _$AppDatabase {
     final rolled = <int>[];
 
     await transaction(() async {
-      final active = await (select(tasks)
-            ..where((t) =>
-                t.deleted.equals(false) &
-                t.repeatRule.isNotValue('none') &
-                t.date.isSmallerThanValue(today)))
-          .get();
+      final active =
+          await (select(tasks)..where(
+                (t) =>
+                    t.deleted.equals(false) &
+                    t.repeatRule.isNotValue('none') &
+                    t.date.isSmallerThanValue(today),
+              ))
+              .get();
 
       for (final t in active) {
         // 今天已推进过 → 跳过（防御并发/重复调用）
@@ -512,18 +537,30 @@ class AppDatabase extends _$AppDatabase {
         // 工作日规则：周六日不推进
         if (t.repeatRule == 'weekdays' && today.weekday >= 6) continue;
         // 每周规则：只在原星期几推进
-        if (t.repeatRule == 'weekly' && today.weekday != t.date.weekday) continue;
+        if (t.repeatRule == 'weekly' && today.weekday != t.date.weekday) {
+          continue;
+        }
 
         // 已完成 → 次日复位为未完成（回到正常栏）；未完成 → 保持未完成。
         // xpAwarded 清零：新的一天重新结算，当天内防刷不受影响。
         final startTime = t.startTime == null
             ? null
-            : DateTime(today.year, today.month, today.day,
-                t.startTime!.hour, t.startTime!.minute);
+            : DateTime(
+                today.year,
+                today.month,
+                today.day,
+                t.startTime!.hour,
+                t.startTime!.minute,
+              );
         final endTime = t.endTime == null
             ? null
-            : DateTime(today.year, today.month, today.day,
-                t.endTime!.hour, t.endTime!.minute);
+            : DateTime(
+                today.year,
+                today.month,
+                today.day,
+                t.endTime!.hour,
+                t.endTime!.minute,
+              );
         await (update(tasks)..where((x) => x.id.equals(t.id))).write(
           TasksCompanion(
             date: Value(today),
@@ -548,14 +585,13 @@ class AppDatabase extends _$AppDatabase {
     int? focusMinutes,
   }) async {
     await transaction(() async {
-      await into(xpLogs).insert(
-        XpLogsCompanion.insert(amount: pomodoroXp, reason: reason),
-      );
+      await into(xpLogs)
+          .insert(XpLogsCompanion.insert(amount: pomodoroXp, reason: reason));
       await addXpToUser(pomodoroXp);
       if (focusMinutes != null) {
-        await into(pomodoroSessions).insert(
-          PomodoroSessionsCompanion.insert(focusMinutes: focusMinutes),
-        );
+        await into(
+          pomodoroSessions,
+        ).insert(PomodoroSessionsCompanion.insert(focusMinutes: focusMinutes));
       }
     });
   }
@@ -586,15 +622,18 @@ class AppDatabase extends _$AppDatabase {
     await (update(settings)..where((s) => s.id.equals(1))).write(
       SettingsCompanion(
         themeId: themeId == null ? const Value.absent() : Value(themeId),
-        whiteNoiseId:
-            whiteNoiseId == null ? const Value.absent() : Value(whiteNoiseId),
-        endOfDayHour:
-            endOfDayHour == null ? const Value.absent() : Value(endOfDayHour),
+        whiteNoiseId: whiteNoiseId == null
+            ? const Value.absent()
+            : Value(whiteNoiseId),
+        endOfDayHour: endOfDayHour == null
+            ? const Value.absent()
+            : Value(endOfDayHour),
         endOfDayMinute: endOfDayMinute == null
             ? const Value.absent()
             : Value(endOfDayMinute),
-        focusMinutes:
-            focusMinutes == null ? const Value.absent() : Value(focusMinutes),
+        focusMinutes: focusMinutes == null
+            ? const Value.absent()
+            : Value(focusMinutes),
         shortBreakMinutes: shortBreakMinutes == null
             ? const Value.absent()
             : Value(shortBreakMinutes),
@@ -634,21 +673,19 @@ class AppDatabase extends _$AppDatabase {
 
   /// 累计完成的任务数（未删除且已勾选）
   Future<int> completedTaskCount() async {
-    final count = await (selectOnly(tasks)
-          ..addColumns([countAll()])
-          ..where(tasks.isDone.equals(true) & tasks.deleted.equals(false)))
-        .map((row) => row.read(countAll())!)
-        .getSingle();
+    final count =
+        await (selectOnly(tasks)
+              ..addColumns([countAll()])
+              ..where(tasks.isDone.equals(true) & tasks.deleted.equals(false)))
+            .map((row) => row.read(countAll())!)
+            .getSingle();
     return count;
   }
 
   /// 某日任务总数与已完成数
   Future<({int total, int done})> taskStatsForDate(DateTime date) async {
     final rows = await _tasksForDateQuery(date).get();
-    return (
-      total: rows.length,
-      done: rows.where((t) => t.isDone).length,
-    );
+    return (total: rows.length, done: rows.where((t) => t.isDone).length);
   }
 
   // ---------- 笔记 ----------
@@ -697,11 +734,7 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<void> updateNoteCategory(
-    int id, {
-    String? name,
-    String? color,
-  }) async {
+  Future<void> updateNoteCategory(int id, {String? name, String? color}) async {
     await (update(noteCategories)..where((c) => c.id.equals(id))).write(
       NoteCategoriesCompanion(
         name: name == null ? const Value.absent() : Value(name),

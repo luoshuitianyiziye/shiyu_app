@@ -12,6 +12,7 @@ class CustomNoiseItem {
 
   /// 应用文档目录内的绝对路径（当前会话有效，可直接用于播放）
   final String path;
+
   /// 显示名（原文件名去扩展名）
   final String name;
 

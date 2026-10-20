@@ -25,7 +25,11 @@ class CalendarPage extends ConsumerStatefulWidget {
 
 class _CalendarPageState extends ConsumerState<CalendarPage> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
-  DateTime _selected = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  DateTime _selected = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    DateTime.now().day,
+  );
   int _view = 0; // 0=月历 1=倒数日
 
   void _changeMonth(int delta) {
@@ -74,7 +78,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 events: events,
                 onMonthChange: _changeMonth,
                 onSelect: (d) => setState(() => _selected = d),
-                onAddEvent: () => showAddEventSheet(context, initialDate: _selected),
+                onAddEvent: () =>
+                    showAddEventSheet(context, initialDate: _selected),
               )
             : _CountdownView(events: events),
       ),
@@ -116,11 +121,16 @@ class _MonthView extends StatelessWidget {
         eventsByDay.putIfAbsent(e.date.day, () => []).add(e);
       }
     }
-    final dayEvents = events.where((e) =>
-        e.date.year == selected.year &&
-        e.date.month == selected.month &&
-        e.date.day == selected.day).toList()
-      ..sort((a, b) => (a.time ?? a.date).compareTo(b.time ?? b.date));
+    final dayEvents =
+        events
+            .where(
+              (e) =>
+                  e.date.year == selected.year &&
+                  e.date.month == selected.month &&
+                  e.date.day == selected.day,
+            )
+            .toList()
+          ..sort((a, b) => (a.time ?? a.date).compareTo(b.time ?? b.date));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
@@ -153,14 +163,19 @@ class _MonthView extends StatelessWidget {
         // 星期表头
         Row(
           children: _weekdayNames
-              .map((w) => Expanded(
-                    child: Center(
-                      child: Text(
-                        w,
-                        style: TextStyle(fontSize: 12, color: palette.textSecondary),
+              .map(
+                (w) => Expanded(
+                  child: Center(
+                    child: Text(
+                      w,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.textSecondary,
                       ),
                     ),
-                  ))
+                  ),
+                ),
+              )
               .toList(),
         ),
         const SizedBox(height: 8),
@@ -208,9 +223,11 @@ class _MonthView extends StatelessWidget {
                           color: isToday
                               ? Colors.white
                               : isSelected
-                                  ? palette.primaryDark
-                                  : palette.textPrimary,
-                          fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                              ? palette.primaryDark
+                              : palette.textPrimary,
+                          fontWeight: isToday
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           fontSize: 14,
                         ),
                       ),
@@ -239,7 +256,11 @@ class _MonthView extends StatelessWidget {
           children: [
             Text(
               DateFormat('M月d日', 'zh_CN').format(selected),
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: palette.textPrimary),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: palette.textPrimary,
+              ),
             ),
             const Spacer(),
             TextButton.icon(
@@ -305,18 +326,21 @@ class _EventCard extends ConsumerWidget {
           margin: EdgeInsets.zero,
           child: ListTile(
             onTap: () => showEditEventSheet(context, event),
-          leading: Icon(Icons.event, color: palette.primaryDark, size: 26),
-          title: Text(event.title, style: TextStyle(color: palette.textPrimary, fontSize: 15)),
-          subtitle: Text(
-            '$timeStr${event.note.isEmpty ? '' : ' · ${event.note}'}',
-            style: TextStyle(color: palette.textSecondary, fontSize: 12),
+            leading: Icon(Icons.event, color: palette.primaryDark, size: 26),
+            title: Text(
+              event.title,
+              style: TextStyle(color: palette.textPrimary, fontSize: 15),
+            ),
+            subtitle: Text(
+              '$timeStr${event.note.isEmpty ? '' : ' · ${event.note}'}',
+              style: TextStyle(color: palette.textSecondary, fontSize: 12),
+            ),
+            trailing: event.pinned
+                ? Icon(Icons.push_pin, size: 16, color: palette.primaryDark)
+                : null,
           ),
-          trailing: event.pinned
-              ? Icon(Icons.push_pin, size: 16, color: palette.primaryDark)
-              : null,
         ),
       ),
-    ),
     );
   }
 }
@@ -377,7 +401,11 @@ class _CountdownCard extends ConsumerWidget {
   /// 点击倒数日卡片：弹出详情小窗（事件 + 倒数日期）
   Future<void> _showDetail(BuildContext context) async {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final eventDay = DateTime(event.date.year, event.date.month, event.date.day);
+    final eventDay = DateTime(
+      event.date.year,
+      event.date.month,
+      event.date.day,
+    );
     final diff = eventDay.difference(today).inDays;
 
     await showDialog(
@@ -408,8 +436,7 @@ class _CountdownCard extends ConsumerWidget {
             _detailRow(
               context,
               icon: Icons.event,
-              text:
-                  '${event.date.year}年${event.date.month}月${event.date.day}日',
+              text: '${event.date.year}年${event.date.month}月${event.date.day}日',
             ),
             if (event.time != null)
               _detailRow(
@@ -469,7 +496,11 @@ class _CountdownCard extends ConsumerWidget {
     );
   }
 
-  Widget _detailRow(BuildContext context, {required IconData icon, required String text}) {
+  Widget _detailRow(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+  }) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -492,7 +523,11 @@ class _CountdownCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
-    final eventDay = DateTime(event.date.year, event.date.month, event.date.day);
+    final eventDay = DateTime(
+      event.date.year,
+      event.date.month,
+      event.date.day,
+    );
     final diff = eventDay.difference(today).inDays;
 
     final (label, color) = switch (diff) {
@@ -515,66 +550,76 @@ class _CountdownCard extends ConsumerWidget {
         child: Card(
           margin: EdgeInsets.zero,
           child: InkWell(
-          onTap: () => _showDetail(context),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: palette.accent.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${event.date.month}.${event.date.day}',
-                        style: TextStyle(fontSize: 12, color: palette.primaryDark),
-                      ),
-                      Text(
-                        '${event.date.year}',
-                        style: TextStyle(fontSize: 10, color: palette.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        event.title,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: palette.textPrimary,
+            onTap: () => _showDetail(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: palette.accent.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${event.date.month}.${event.date.day}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: palette.primaryDark,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: color,
+                        Text(
+                          '${event.date.year}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: palette.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Icon(Icons.chevron_right, size: 18, color: palette.textSecondary),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event.title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: palette.textSecondary,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }

@@ -42,7 +42,10 @@ class RankWallPage extends ConsumerWidget {
                 children: [
                   Text(
                     '当前段位',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -56,15 +59,15 @@ class RankWallPage extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     '已解锁 $unlocked / 9 个段位',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   GestureDetector(
-                    onTap: () => showRankPreview(
-                      context,
-                      rank: current,
-                      unlocked: true,
-                    ),
+                    onTap: () =>
+                        showRankPreview(context, rank: current, unlocked: true),
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
@@ -92,7 +95,10 @@ class RankWallPage extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     '点击图片可放大',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 11),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -218,7 +224,10 @@ Future<void> showRankPreview(
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -271,9 +280,7 @@ Future<void> showRankPreview(
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    unlocked
-                        ? '双指缩放 · 点击空白处关闭'
-                        : '完成每日任务获取经验，升级解锁 · 点击空白处关闭',
+                    unlocked ? '双指缩放 · 点击空白处关闭' : '完成每日任务获取经验，升级解锁 · 点击空白处关闭',
                     style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
@@ -302,16 +309,14 @@ class _RankCard extends StatelessWidget {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
 
     return GestureDetector(
-      onTap: () => showRankPreview(
-        context,
-        rank: rank,
-        unlocked: unlocked,
-      ),
+      onTap: () => showRankPreview(context, rank: rank, unlocked: unlocked),
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: current ? Border.all(color: palette.primary, width: 2.5) : null,
+          border: current
+              ? Border.all(color: palette.primary, width: 2.5)
+              : null,
         ),
         child: Stack(
           fit: StackFit.expand,
@@ -320,15 +325,17 @@ class _RankCard extends StatelessWidget {
               rank.assetPath,
               fit: BoxFit.cover,
               cacheWidth: 360,
-              color: unlocked
-                  ? null
-                  : Colors.white.withValues(alpha: 0.35),
+              color: unlocked ? null : Colors.white.withValues(alpha: 0.35),
               colorBlendMode: unlocked ? null : BlendMode.saturation,
             ),
             if (!unlocked) ...[
               Container(color: Colors.black.withValues(alpha: 0.5)),
               const Center(
-                child: Icon(Icons.lock_outline, color: Colors.white70, size: 30),
+                child: Icon(
+                  Icons.lock_outline,
+                  color: Colors.white70,
+                  size: 30,
+                ),
               ),
             ],
             Positioned(
@@ -350,8 +357,13 @@ class _RankCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      unlocked ? 'Lv.${rank.minLevel} 已解锁' : 'Lv.${rank.minLevel} 解锁',
-                      style: const TextStyle(color: Colors.white70, fontSize: 10),
+                      unlocked
+                          ? 'Lv.${rank.minLevel} 已解锁'
+                          : 'Lv.${rank.minLevel} 解锁',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                      ),
                     ),
                   ],
                 ),
@@ -362,7 +374,10 @@ class _RankCard extends StatelessWidget {
                 top: 6,
                 right: 6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: palette.primary,
                     borderRadius: BorderRadius.circular(10),

@@ -25,7 +25,8 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final settingsAsync = ref.watch(settingsStreamProvider);
-    final customNoise = ref.watch(customNoiseProvider).value ?? const <CustomNoiseItem>[];
+    final customNoise =
+        ref.watch(customNoiseProvider).value ?? const <CustomNoiseItem>[];
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -47,8 +48,9 @@ class SettingsPage extends ConsumerWidget {
                     min: 15,
                     max: 60,
                     step: 5,
-                    onChanged: (v) =>
-                        ref.read(databaseProvider).updateSettings(focusMinutes: v),
+                    onChanged: (v) => ref
+                        .read(databaseProvider)
+                        .updateSettings(focusMinutes: v),
                   ),
                   _Divider(palette),
                   _StepperRow(
@@ -77,9 +79,7 @@ class SettingsPage extends ConsumerWidget {
                 ],
               ),
             ),
-            const _Hint(
-              text: '每完成一个番茄 +5 XP · 每 4 个番茄进入一次长休息',
-            ),
+            const _Hint(text: '每完成一个番茄 +5 XP · 每 4 个番茄进入一次长休息'),
 
             // ===== 提醒 =====
             const _GroupTitle('提醒'),
@@ -444,8 +444,10 @@ class _BackupCardState extends ConsumerState<_BackupCard> {
     try {
       final path = picked.path;
       if (path == null) throw const FormatException('无法读取所选文件');
-      final summary =
-          await BackupService.restoreFromFile(ref.read(databaseProvider), File(path));
+      final summary = await BackupService.restoreFromFile(
+        ref.read(databaseProvider),
+        File(path),
+      );
       // 统计快照手动刷新（任务/笔记列表由 drift watch 流自动刷新）
       ref.invalidate(statsSnapshotProvider);
       if (mounted) {

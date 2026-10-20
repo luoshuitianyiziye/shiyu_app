@@ -27,9 +27,7 @@ ActionPane buildEditDeletePane(
         foregroundColor: Colors.white,
         icon: Icons.edit_outlined,
         label: '编辑',
-        borderRadius: BorderRadius.horizontal(
-          left: Radius.circular(radius),
-        ),
+        borderRadius: BorderRadius.horizontal(left: Radius.circular(radius)),
         flex: 1,
       ),
       SlidableAction(
@@ -38,9 +36,7 @@ ActionPane buildEditDeletePane(
         foregroundColor: Colors.white,
         icon: Icons.delete_outline,
         label: '删除',
-        borderRadius: BorderRadius.horizontal(
-          right: Radius.circular(radius),
-        ),
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(radius)),
         flex: 1,
       ),
     ],
@@ -74,10 +70,7 @@ ActionPane buildCompletePane(
     ),
     children: [
       // 透明占位：DrawerMotion 要求子项带非零 flex，这里不需要可见内容
-      Flexible(
-        fit: FlexFit.tight,
-        child: SizedBox.expand(),
-      ),
+      Flexible(fit: FlexFit.tight, child: SizedBox.expand()),
     ],
   );
 }

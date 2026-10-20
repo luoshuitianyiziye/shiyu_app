@@ -45,8 +45,7 @@ List<String> splitImportText(String raw) {
 }
 
 /// 分隔线识别：3 个及以上的 - = * _ — ~ 组成
-bool _isSeparator(String line) =>
-    RegExp(r'^[-=*_—~]{3,}$').hasMatch(line);
+bool _isSeparator(String line) => RegExp(r'^[-=*_—~]{3,}$').hasMatch(line);
 
 /// 由条目列表构造笔记正文（Quill Delta JSON）：
 /// 每条一段、条目之间用一个空段落分隔，阅读与搜索命中都更清晰。

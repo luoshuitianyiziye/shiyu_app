@@ -71,6 +71,11 @@ class BackupService {
     if (decoded is! Map<String, dynamic> || decoded['app'] != 'shiyu') {
       throw const FormatException('不是时屿的备份文件');
     }
+    // 备份来自更高版本：结构可能不同，拒绝恢复避免数据错乱
+    final formatVersion = decoded['formatVersion'];
+    if (formatVersion is int && formatVersion > _formatVersion) {
+      throw const FormatException('备份来自更新版本的时屿，请先升级 App 再恢复');
+    }
 
     final users = _listOf(decoded['users']);
     final tasks = _listOf(decoded['tasks']);
@@ -114,7 +119,9 @@ class BackupService {
         await db.into(db.settings).insert(SettingsRow.fromJson(m));
       }
       for (final m in pomodoros) {
-        await db.into(db.pomodoroSessions).insert(PomodoroSessionRow.fromJson(m));
+        await db
+            .into(db.pomodoroSessions)
+            .insert(PomodoroSessionRow.fromJson(m));
       }
     });
 

@@ -73,7 +73,11 @@ class GrowthPage extends ConsumerWidget {
                     child: CircleAvatar(
                       radius: 25,
                       backgroundColor: palette.accent,
-                      child: Icon(Icons.person, color: palette.primaryDark, size: 28),
+                      child: Icon(
+                        Icons.person,
+                        color: palette.primaryDark,
+                        size: 28,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -92,7 +96,10 @@ class GrowthPage extends ConsumerWidget {
                         const SizedBox(height: 2),
                         Text(
                           'Lv.$level · ${currentRank.name} 段位 · 连续 ${user.streakDays} 天',
-                          style: TextStyle(fontSize: 13, color: palette.textSecondary),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: palette.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -168,7 +175,10 @@ class GrowthPage extends ConsumerWidget {
                         ),
                         Text(
                           '已解锁 $unlocked/9 · 收集你的九段位插画',
-                          style: TextStyle(fontSize: 12, color: palette.textSecondary),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: palette.textSecondary,
+                          ),
                         ),
                       ],
                     ),

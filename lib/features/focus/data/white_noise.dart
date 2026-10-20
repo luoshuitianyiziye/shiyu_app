@@ -22,13 +22,33 @@ class WhiteNoiseTrack {
 }
 
 const List<WhiteNoiseTrack> kWhiteNoiseTracks = [
-  WhiteNoiseTrack(id: 'rain', name: '雨声', asset: 'assets/audio/rain.mp3', icon: Icons.water_drop_outlined),
-  WhiteNoiseTrack(id: 'ocean', name: '海浪', asset: 'assets/audio/ocean.mp3', icon: Icons.waves),
-  WhiteNoiseTrack(id: 'fire', name: '篝火', asset: 'assets/audio/fire.mp3', icon: Icons.local_fire_department_outlined),
-  WhiteNoiseTrack(id: 'wind', name: '风声', asset: 'assets/audio/wind.mp3', icon: Icons.air),
+  WhiteNoiseTrack(
+    id: 'rain',
+    name: '雨声',
+    asset: 'assets/audio/rain.mp3',
+    icon: Icons.water_drop_outlined,
+  ),
+  WhiteNoiseTrack(
+    id: 'ocean',
+    name: '海浪',
+    asset: 'assets/audio/ocean.mp3',
+    icon: Icons.waves,
+  ),
+  WhiteNoiseTrack(
+    id: 'fire',
+    name: '篝火',
+    asset: 'assets/audio/fire.mp3',
+    icon: Icons.local_fire_department_outlined,
+  ),
+  WhiteNoiseTrack(
+    id: 'wind',
+    name: '风声',
+    asset: 'assets/audio/wind.mp3',
+    icon: Icons.air,
+  ),
 ];
 
 WhiteNoiseTrack whiteNoiseById(String id) => kWhiteNoiseTracks.firstWhere(
-      (t) => t.id == id,
-      orElse: () => kWhiteNoiseTracks.first,
-    );
+  (t) => t.id == id,
+  orElse: () => kWhiteNoiseTracks.first,
+);

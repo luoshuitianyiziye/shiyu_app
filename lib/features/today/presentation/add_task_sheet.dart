@@ -93,18 +93,28 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
   Future<void> _doSave() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入任务标题')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入任务标题')));
       return;
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final db = ref.read(databaseProvider);
 
+    // 跨天兜底：若今日日期 provider 仍停留在昨天（后台过夜定时器延迟），
+    // 先同步到今天，否则新任务（日期=今天）不会出现在列表中。
+    if (ref.read(todayDateProvider) != today) {
+      ref.read(todayDateProvider.notifier).state = today;
+    }
+
     final startDateTime = _withTime && _startTime != null
-        ? DateTime(today.year, today.month, today.day,
-            _startTime!.hour, _startTime!.minute)
+        ? DateTime(
+            today.year,
+            today.month,
+            today.day,
+            _startTime!.hour,
+            _startTime!.minute,
+          )
         : null;
     // 开始时间已过 → 提醒不会触发（scheduleTaskReminder 内部会跳过），
     // 提前告知用户，避免「已添加」但实际无提醒的误导
@@ -133,9 +143,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              startInPast ? '任务已更新（该时段已过，未设提醒）' : '任务已更新，提醒已同步',
-            ),
+            content: Text(startInPast ? '任务已更新（该时段已过，未设提醒）' : '任务已更新，提醒已同步'),
           ),
         );
       }
@@ -167,9 +175,7 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            startInPast ? '已添加到今日任务（该时段已过，未设提醒）' : '已添加到今日任务',
-          ),
+          content: Text(startInPast ? '已添加到今日任务（该时段已过，未设提醒）' : '已添加到今日任务'),
         ),
       );
     }
@@ -237,7 +243,9 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
 
     return Padding(
       // 键盘弹出时上移
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: Column(
@@ -275,7 +283,10 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
               onSubmitted: (_) => _save(),
             ),
             const SizedBox(height: 20),
-            Text('四象限', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
+            Text(
+              '四象限',
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -287,13 +298,18 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                   onSelected: (_) => setState(() => _quadrant = q.id),
                   selectedColor: palette.accent,
                   labelStyle: TextStyle(
-                    color: _quadrant == q.id ? palette.primaryDark : palette.textSecondary,
+                    color: _quadrant == q.id
+                        ? palette.primaryDark
+                        : palette.textSecondary,
                   ),
                 );
               }).toList(),
             ),
             const SizedBox(height: 20),
-            Text('难度', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
+            Text(
+              '难度',
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
+            ),
             const SizedBox(height: 8),
             SegmentedButton<int>(
               segments: const [
@@ -311,7 +327,10 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text('设置开始时段', style: TextStyle(color: palette.textPrimary)),
+              title: Text(
+                '设置开始时段',
+                style: TextStyle(color: palette.textPrimary),
+              ),
               subtitle: Text(
                 _withTime && _startTime != null
                     ? '${formatHm(_startTime!.hour, _startTime!.minute)} 开始提醒'
@@ -353,7 +372,10 @@ class _AddTaskSheetState extends ConsumerState<_AddTaskSheet> {
                   : null,
             ),
             const SizedBox(height: 16),
-            Text('重复', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
+            Text(
+              '重复',
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
+            ),
             const SizedBox(height: 8),
             MorandiOptionField(
               icon: Icons.repeat,

@@ -53,9 +53,7 @@ class EmptyState extends StatelessWidget {
               SizedBox(
                 width: 168,
                 height: 116,
-                child: CustomPaint(
-                  painter: _EmptyIllustrationPainter(palette),
-                ),
+                child: CustomPaint(painter: _EmptyIllustrationPainter(palette)),
               ),
             SizedBox(height: compact ? 12 : 12),
             Text(

@@ -15,6 +15,7 @@ class RankInfo {
   /// 段位序号 1-9
   final int index;
   final String name;
+
   /// 达到该段位所需的最小等级
   final int minLevel;
   final String assetPath;
@@ -26,13 +27,33 @@ const int kRankLevelStep = 5;
 const List<RankInfo> kRanks = [
   RankInfo(index: 1, name: '雾芽', minLevel: 1, assetPath: 'assets/ranks/1.jpeg'),
   RankInfo(index: 2, name: '浅湾', minLevel: 6, assetPath: 'assets/ranks/2.jpeg'),
-  RankInfo(index: 3, name: '青屿', minLevel: 11, assetPath: 'assets/ranks/3.jpeg'),
-  RankInfo(index: 4, name: '竹林', minLevel: 16, assetPath: 'assets/ranks/4.jpeg'),
+  RankInfo(
+    index: 3,
+    name: '青屿',
+    minLevel: 11,
+    assetPath: 'assets/ranks/3.jpeg',
+  ),
+  RankInfo(
+    index: 4,
+    name: '竹林',
+    minLevel: 16,
+    assetPath: 'assets/ranks/4.jpeg',
+  ),
   RankInfo(index: 5, name: '松风', minLevel: 21, assetPath: 'assets/ranks/5.jpg'),
   RankInfo(index: 6, name: '远山', minLevel: 26, assetPath: 'assets/ranks/6.png'),
   RankInfo(index: 7, name: '星河', minLevel: 31, assetPath: 'assets/ranks/7.png'),
-  RankInfo(index: 8, name: '沧海', minLevel: 36, assetPath: 'assets/ranks/8.jpeg'),
-  RankInfo(index: 9, name: '时屿', minLevel: 41, assetPath: 'assets/ranks/9.jpeg'),
+  RankInfo(
+    index: 8,
+    name: '沧海',
+    minLevel: 36,
+    assetPath: 'assets/ranks/8.jpeg',
+  ),
+  RankInfo(
+    index: 9,
+    name: '时屿',
+    minLevel: 41,
+    assetPath: 'assets/ranks/9.jpeg',
+  ),
 ];
 
 /// 升到 level 级所需的累计经验：50 * L * (L+1)

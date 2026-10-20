@@ -15,9 +15,7 @@ void main() {
     final nickname = ValueNotifier<String?>(null);
     final themeId = ValueNotifier<String>('mist_green');
 
-    await tester.pumpWidget(
-      _buildApp(nickname: nickname, themeId: themeId),
-    );
+    await tester.pumpWidget(_buildApp(nickname: nickname, themeId: themeId));
     await tester.pumpAndSettle();
 
     expect(find.text('时屿'), findsWidgets);

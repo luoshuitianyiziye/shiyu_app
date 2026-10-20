@@ -21,26 +21,37 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
 
   /// 页面底色
   final Color background;
+
   /// 卡片底色
   final Color card;
+
   /// 主色
   final Color primary;
+
   /// 深主色（按钮/强调文字）
   final Color primaryDark;
+
   /// 浅强调色（进度条底色、选中指示）
   final Color accent;
+
   /// 正文
   final Color textPrimary;
+
   /// 次要文字
   final Color textSecondary;
+
   /// 警示（未完成提醒、删除）
   final Color danger;
+
   /// 次级容器底（输入框、分组卡片底）
   final Color surfaceVariant;
+
   /// 卡片描边 / 分隔线
   final Color outline;
+
   /// 达成/成功（成就、完成率）
   final Color success;
+
   /// 经验/奖励点缀（XP、晋级、段位）
   final Color gold;
 
@@ -49,13 +60,14 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
 
   /// 系统状态栏/导航栏样式（透明状态栏 + 图标颜色随主题）
   SystemUiOverlayStyle get overlayStyle => SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: background,
-        systemNavigationBarIconBrightness:
-            isDark ? Brightness.light : Brightness.dark,
-      );
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+    systemNavigationBarColor: background,
+    systemNavigationBarIconBrightness: isDark
+        ? Brightness.light
+        : Brightness.dark,
+  );
 
   @override
   MorandiPalette copyWith({
@@ -110,7 +122,11 @@ class MorandiPalette extends ThemeExtension<MorandiPalette> {
 
 /// 一套主题 = id + 名称 + 色板
 class MorandiTheme {
-  const MorandiTheme({required this.id, required this.name, required this.palette});
+  const MorandiTheme({
+    required this.id,
+    required this.name,
+    required this.palette,
+  });
 
   final String id;
   final String name;
@@ -262,17 +278,18 @@ class MorandiPageTransitionsBuilder extends PageTransitionsBuilder {
 /// 由 MorandiTheme 构建完整 ThemeData（Material 3）
 ThemeData buildTheme(MorandiTheme theme) {
   final p = theme.palette;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: p.primary,
-    brightness: p.isDark ? Brightness.dark : Brightness.light,
-  ).copyWith(
-    primary: p.primary,
-    onPrimary: p.isDark ? const Color(0xFF1F231E) : Colors.white,
-    secondary: p.accent,
-    surface: p.card,
-    onSurface: p.textPrimary,
-    error: p.danger,
-  );
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: p.primary,
+        brightness: p.isDark ? Brightness.dark : Brightness.light,
+      ).copyWith(
+        primary: p.primary,
+        onPrimary: p.isDark ? const Color(0xFF1F231E) : Colors.white,
+        secondary: p.accent,
+        surface: p.card,
+        onSurface: p.textPrimary,
+        error: p.danger,
+      );
 
   return ThemeData(
     useMaterial3: true,
@@ -316,11 +333,17 @@ ThemeData buildTheme(MorandiTheme theme) {
       backgroundColor: p.card,
       indicatorColor: p.accent,
       labelTextStyle: WidgetStatePropertyAll(
-        TextStyle(color: p.textPrimary, fontSize: 12, fontWeight: FontWeight.w500),
+        TextStyle(
+          color: p.textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       iconTheme: WidgetStateProperty.resolveWith(
         (states) => IconThemeData(
-          color: states.contains(WidgetState.selected) ? p.primaryDark : p.textSecondary,
+          color: states.contains(WidgetState.selected)
+              ? p.primaryDark
+              : p.textSecondary,
         ),
       ),
     ),

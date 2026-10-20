@@ -89,14 +89,14 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   void initState() {
     super.initState();
     _browsing = !_isNew;
-    _titleController = TextEditingController(text: widget.existing?.title ?? '');
+    _titleController = TextEditingController(
+      text: widget.existing?.title ?? '',
+    );
     _categoryId = widget.existing?.categoryId;
     _captions = _captionsFromJson(widget.existing?.imageCaptions ?? '');
     final body = widget.existing?.body ?? '';
     _quill = QuillController(
-      document: body.isEmpty
-          ? Document()
-          : _documentFromJson(body),
+      document: body.isEmpty ? Document() : _documentFromJson(body),
       selection: const TextSelection.collapsed(offset: 0),
       readOnly: _browsing,
     );
@@ -125,10 +125,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   /// 编辑态下键盘收起 → 自动回到浏览模式。
   /// [height] 为键盘高度（逻辑像素）；从 >0 变为 0 视为收起。
   void _handleKeyboardHeight(double height) {
-    if (_lastKeyboardHeight > 0 &&
-        height <= 0 &&
-        !_browsing &&
-        !_searching) {
+    if (_lastKeyboardHeight > 0 && height <= 0 && !_browsing && !_searching) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _exitEditMode();
       });
@@ -244,11 +241,11 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     final state = _editorKey.currentState;
     if (state is QuillRawEditorState) {
       state.bringIntoView(TextPosition(offset: start));
-    } else {
-      // 兜底：按文档比例粗略滚动
+    } else if (_scrollController.hasClients) {
+      // 兜底：按文档比例粗略滚动（滚动控制器未挂载时跳过，避免定位抛错）
       _scrollController.animateTo(
         (_scrollController.position.maxScrollExtent *
-                (start / doc.length).clamp(0.0, 1.0)),
+            (start / doc.length).clamp(0.0, 1.0)),
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
@@ -257,9 +254,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
 
   void _showSearchToast(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   Map<String, String> _captionsFromJson(String s) {
@@ -320,8 +315,9 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
           final len = node.toPlainText().length; // 不含换行符
           if (len <= 0) continue;
           if (offset < 0 || offset + len > doc.length) continue;
-          final hasStrike =
-              node.style.attributes.containsKey(Attribute.strikeThrough.key);
+          final hasStrike = node.style.attributes.containsKey(
+            Attribute.strikeThrough.key,
+          );
           if (listValue == Attribute.checked.value && !hasStrike) {
             // 勾选但无删除线 → 补上
             _quill.formatText(
@@ -373,7 +369,10 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     final doc = _quill.document;
     // 选区可能失效（如刚删除过图片），回退到文档末尾
     final sel = _quill.selection;
-    var index = (sel.isValid ? sel.baseOffset : doc.length).clamp(0, doc.length);
+    var index = (sel.isValid ? sel.baseOffset : doc.length).clamp(
+      0,
+      doc.length,
+    );
     // flutter_quill 只保证 video 类 embed 独占一行，图片不会自动补换行；
     // 若光标在段中/段尾，先把位置归一化到行首，保证图片独占一行，
     // 避免与文字同处一行导致行内溢出、以及按行删除时连带删除文字。
@@ -416,12 +415,18 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
             ),
             if (hasCaption)
               ListTile(
-                leading: Icon(Icons.clear, color: Theme.of(ctx).colorScheme.error),
+                leading: Icon(
+                  Icons.clear,
+                  color: Theme.of(ctx).colorScheme.error,
+                ),
                 title: const Text('移除说明'),
                 onTap: () => Navigator.of(ctx).pop('removeCaption'),
               ),
             ListTile(
-              leading: Icon(Icons.delete_outline, color: Theme.of(ctx).colorScheme.error),
+              leading: Icon(
+                Icons.delete_outline,
+                color: Theme.of(ctx).colorScheme.error,
+              ),
               title: const Text('删除图片'),
               onTap: () => Navigator.of(ctx).pop('delete'),
             ),
@@ -507,7 +512,10 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
                       child: Text(
                         caption,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   const SizedBox(height: 8),
@@ -588,17 +596,15 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     final text = _quill.document.toPlainText();
     if (text.trim().isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('笔记为空，没有可复制的内容')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('笔记为空，没有可复制的内容')));
       }
       return;
     }
     await Clipboard.setData(ClipboardData(text: text));
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已复制全文')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('已复制全文')));
     }
   }
 
@@ -606,9 +612,8 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     if (_saving) return;
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('给笔记起个标题吧')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('给笔记起个标题吧')));
       return;
     }
     setState(() => _saving = true);
@@ -648,9 +653,8 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存失败：$e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('保存失败：$e')));
       }
     } finally {
       // 无论成功失败都复位，避免保存按钮永久卡死
@@ -719,16 +723,8 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
 
     // 第一行：最常用格式
     final primary = <Widget>[
-      _toolButton(
-        icon: Icons.undo,
-        hint: '撤销',
-        onTap: () => _quill.undo(),
-      ),
-      _toolButton(
-        icon: Icons.redo,
-        hint: '重做',
-        onTap: () => _quill.redo(),
-      ),
+      _toolButton(icon: Icons.undo, hint: '撤销', onTap: () => _quill.undo()),
+      _toolButton(icon: Icons.redo, hint: '重做', onTap: () => _quill.redo()),
       _toolButton(
         icon: Icons.title,
         hint: '标题（正文/标题1/标题2）',
@@ -1041,10 +1037,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
                   ),
                 // 编辑态：完成（回到浏览）+ 保存（落库并返回列表）
                 if (!_browsing) ...[
-                  TextButton(
-                    onPressed: _exitEditMode,
-                    child: const Text('完成'),
-                  ),
+                  TextButton(onPressed: _exitEditMode, child: const Text('完成')),
                   TextButton(
                     onPressed: _saving ? null : _save,
                     child: const Text('保存'),
@@ -1243,10 +1236,7 @@ class LocalImageEmbedBuilder extends EmbedBuilder {
                 child: Text(
                   caption,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: palette.textSecondary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: palette.textSecondary),
                 ),
               ),
           ],

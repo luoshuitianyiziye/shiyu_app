@@ -27,9 +27,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (_saving) return;
     final name = _controller.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入昵称')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入昵称')));
       return;
     }
     setState(() => _saving = true);

@@ -21,11 +21,7 @@ const _weekdayNames = kWeekdayNames;
 const _difficultyNames = {1: '简单', 2: '普通', 3: '困难'};
 
 /// 重复规则中文名（任务行标记用）
-const _repeatLabels = {
-  'daily': '每天',
-  'weekdays': '工作日',
-  'weekly': '每周',
-};
+const _repeatLabels = {'daily': '每天', 'weekdays': '工作日', 'weekly': '每周'};
 
 /// 今日任务页：四象限分组 + 完成任务得经验
 class TodayPage extends ConsumerWidget {
@@ -40,7 +36,9 @@ class TodayPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${today.month}月${today.day}日 · 周${_weekdayNames[today.weekday - 1]}'),
+        title: Text(
+          '${today.month}月${today.day}日 · 周${_weekdayNames[today.weekday - 1]}',
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: null, // 多页 FAB 共存（indexedStack），禁用 hero 动画避免标签冲突
@@ -82,10 +80,13 @@ class _HeaderCard extends StatelessWidget {
         child: userAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.all(20),
-            child: Center(child: SizedBox(
-              width: 24, height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )),
+            child: Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           ),
           error: (_, _) => const SizedBox.shrink(),
           data: (user) {
@@ -159,7 +160,10 @@ class _HeaderCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           '距 Lv.${level + 1} 还差 ${nextXp - user.xpTotal} XP · 连续 ${user.streakDays} 天',
-                          style: TextStyle(fontSize: 11, color: palette.textSecondary),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: palette.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -192,7 +196,11 @@ class _DailyReviewCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              Icon(Icons.insights_outlined, size: 18, color: palette.primaryDark),
+              Icon(
+                Icons.insights_outlined,
+                size: 18,
+                color: palette.primaryDark,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -202,13 +210,19 @@ class _DailyReviewCard extends ConsumerWidget {
                       stats.todayTotal == 0
                           ? '今日还没有任务，去添加一个吧'
                           : '今日完成 ${stats.todayDone}/${stats.todayTotal} 项'
-                              '（${(rate * 100).round()}%）',
-                      style: TextStyle(fontSize: 13, color: palette.textPrimary),
+                                '（${(rate * 100).round()}%）',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: palette.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '本周番茄 ${stats.weekPomodoros} · 连续打卡 ${stats.streakDays} 天',
-                      style: TextStyle(fontSize: 11, color: palette.textSecondary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: palette.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -274,8 +288,9 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   /// 循环外只重建一次收尾提醒，避免 N 个任务触发 N 次全量调度。
   Future<void> _restoreSelected() async {
     final db = ref.read(databaseProvider);
-    final targets =
-        widget.tasks.where((t) => t.isDone && _selected.contains(t.id)).toList();
+    final targets = widget.tasks
+        .where((t) => t.isDone && _selected.contains(t.id))
+        .toList();
     if (targets.isEmpty) return;
     for (final task in targets) {
       await _restoreTask(task, syncEndOfDay: false);
@@ -288,10 +303,7 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
   /// 恢复任务为未完成，并按开始时间重建提醒（完成/删除时取消的提醒恢复对称）。
   /// [syncEndOfDay] 默认 true（单任务恢复时立即同步收尾提醒）；
   /// 批量恢复传 false，由外层统一调度一次。
-  Future<void> _restoreTask(
-    TaskRow task, {
-    bool syncEndOfDay = true,
-  }) async {
+  Future<void> _restoreTask(TaskRow task, {bool syncEndOfDay = true}) async {
     final db = ref.read(databaseProvider);
     await db.uncompleteTaskById(task.id);
     await ReminderCoordinator.syncTaskReminder(
@@ -356,8 +368,9 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
     }
 
     // 选中项中已完成的个数（决定「恢复」按钮是否可用）
-    final selectedDone =
-        tasks.where((t) => t.isDone && _selected.contains(t.id)).length;
+    final selectedDone = tasks
+        .where((t) => t.isDone && _selected.contains(t.id))
+        .length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
@@ -394,7 +407,11 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
         if (done.isNotEmpty) ...[
           Row(
             children: [
-              Icon(Icons.check_circle_outline, size: 18, color: palette.primaryDark),
+              Icon(
+                Icons.check_circle_outline,
+                size: 18,
+                color: palette.primaryDark,
+              ),
               const SizedBox(width: 6),
               Text(
                 '已完成 · ${done.length}',
@@ -414,6 +431,7 @@ class _TaskQuadrantListState extends ConsumerState<_TaskQuadrantList> {
           ),
           ...done.map(
             (t) => _DoneTaskTile(
+              key: ValueKey('done-${t.id}'),
               task: t,
               selectMode: _selectMode,
               selected: _selected.contains(t.id),
@@ -474,7 +492,9 @@ class _SelectionBar extends StatelessWidget {
                 TextButton.icon(
                   onPressed: onToggleAll,
                   icon: Icon(
-                    allSelected ? Icons.check_box : Icons.check_box_outline_blank,
+                    allSelected
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
                     size: 18,
                   ),
                   label: Text(allSelected ? '取消全选' : '全选'),
@@ -510,7 +530,9 @@ class _SelectionBar extends StatelessWidget {
                     label: const Text('彻底删除'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: palette.danger,
-                      side: BorderSide(color: palette.danger.withValues(alpha: 0.6)),
+                      side: BorderSide(
+                        color: palette.danger.withValues(alpha: 0.6),
+                      ),
                     ),
                   ),
                 ),
@@ -526,6 +548,7 @@ class _SelectionBar extends StatelessWidget {
 /// 已完成任务行：普通模式点击恢复；多选模式点击勾选；长按进入多选
 class _DoneTaskTile extends StatelessWidget {
   const _DoneTaskTile({
+    super.key,
     required this.task,
     required this.selectMode,
     required this.selected,
@@ -571,11 +594,7 @@ class _DoneTaskTile extends StatelessWidget {
                   color: selected ? palette.primaryDark : palette.textSecondary,
                   size: 24,
                 )
-              : Icon(
-                  Icons.check_circle,
-                  color: palette.primary,
-                  size: 26,
-                ),
+              : Icon(Icons.check_circle, color: palette.primary, size: 26),
           title: Text(
             task.title,
             style: TextStyle(
@@ -592,15 +611,32 @@ class _DoneTaskTile extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 if (timeStr != null) ...[
-                  Icon(Icons.access_time, size: 13, color: palette.textSecondary),
-                  Text(timeStr, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                  Icon(
+                    Icons.access_time,
+                    size: 13,
+                    color: palette.textSecondary,
+                  ),
+                  Text(
+                    timeStr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: palette.textSecondary,
+                    ),
+                  ),
                 ],
-                Text(_difficultyNames[task.difficulty] ?? '普通',
-                    style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-                Text(q.name, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
+                Text(
+                  _difficultyNames[task.difficulty] ?? '普通',
+                  style: TextStyle(fontSize: 12, color: palette.textSecondary),
+                ),
+                Text(
+                  q.name,
+                  style: TextStyle(fontSize: 12, color: palette.textSecondary),
+                ),
                 if (task.xpAwarded > 0)
-                  Text('+${task.xpAwarded} XP',
-                      style: TextStyle(fontSize: 12, color: palette.primaryDark)),
+                  Text(
+                    '+${task.xpAwarded} XP',
+                    style: TextStyle(fontSize: 12, color: palette.primaryDark),
+                  ),
               ],
             ),
           ),
@@ -614,7 +650,8 @@ class _DoneTaskTile extends StatelessWidget {
 }
 
 /// 四象限主题色（任务卡色条 / 分组标题共用）
-Color _quadrantColor(MorandiPalette palette, int quadrant) => switch (quadrant) {
+Color _quadrantColor(MorandiPalette palette, int quadrant) =>
+    switch (quadrant) {
       1 => palette.danger,
       2 => palette.primary,
       3 => palette.primaryDark,
@@ -709,7 +746,7 @@ class _TaskTile extends ConsumerWidget {
         }
         // 取消完成：恢复未完成状态，并按开始时间重建提醒
         // （完成时已取消的提醒在此恢复，保证取消/重建对称）
-        await db.uncompleteTask(task);
+        await db.uncompleteTaskById(task.id);
         await ReminderCoordinator.syncTaskReminder(
           taskId: task.id,
           title: task.title,
@@ -780,61 +817,106 @@ class _TaskTile extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // 象限色条：一眼区分四象限
-                Container(width: 4, color: _quadrantColor(palette, task.quadrant)),
+                Container(
+                  width: 4,
+                  color: _quadrantColor(palette, task.quadrant),
+                ),
                 Expanded(
                   child: ListTile(
-                    onTap: selectMode ? onCheckTap : () => _toggle(context, ref),
-            onLongPress: onLongPress,
-            selected: selected,
-            selectedTileColor: palette.accent.withValues(alpha: 0.35),
-            leading: selectMode
-                ? Icon(
-                    selected ? Icons.check_box : Icons.check_box_outline_blank,
-                    color: selected ? palette.primaryDark : palette.textSecondary,
-                    size: 26,
-                  )
-                : Icon(
-                    task.isDone ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: task.isDone ? palette.primary : palette.textSecondary,
-                    size: 26,
+                    onTap: selectMode
+                        ? onCheckTap
+                        : () => _toggle(context, ref),
+                    onLongPress: onLongPress,
+                    selected: selected,
+                    selectedTileColor: palette.accent.withValues(alpha: 0.35),
+                    leading: selectMode
+                        ? Icon(
+                            selected
+                                ? Icons.check_box
+                                : Icons.check_box_outline_blank,
+                            color: selected
+                                ? palette.primaryDark
+                                : palette.textSecondary,
+                            size: 26,
+                          )
+                        : Icon(
+                            task.isDone
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: task.isDone
+                                ? palette.primary
+                                : palette.textSecondary,
+                            size: 26,
+                          ),
+                    title: Text(
+                      task.title,
+                      style: TextStyle(
+                        color: task.isDone
+                            ? palette.textSecondary
+                            : palette.textPrimary,
+                        decoration: task.isDone
+                            ? TextDecoration.lineThrough
+                            : null,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (timeStr != null) ...[
+                            Icon(
+                              Icons.access_time,
+                              size: 13,
+                              color: palette.textSecondary,
+                            ),
+                            Text(
+                              timeStr,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                          ],
+                          Text(
+                            _difficultyNames[task.difficulty] ?? '普通',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                          Text(
+                            q.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: palette.textSecondary,
+                            ),
+                          ),
+                          if (_repeatLabels.containsKey(task.repeatRule)) ...[
+                            Icon(
+                              Icons.repeat,
+                              size: 13,
+                              color: palette.primaryDark,
+                            ),
+                            Text(
+                              _repeatLabels[task.repeatRule]!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: palette.primaryDark,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
-          title: Text(
-            task.title,
-            style: TextStyle(
-              color: task.isDone ? palette.textSecondary : palette.textPrimary,
-              decoration: task.isDone ? TextDecoration.lineThrough : null,
-              fontSize: 15,
-            ),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 2,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (timeStr != null) ...[
-                  Icon(Icons.access_time, size: 13, color: palette.textSecondary),
-                  Text(timeStr, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-                ],
-                Text(_difficultyNames[task.difficulty] ?? '普通',
-                    style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-                Text(q.name, style: TextStyle(fontSize: 12, color: palette.textSecondary)),
-                if (_repeatLabels.containsKey(task.repeatRule)) ...[
-                  Icon(Icons.repeat, size: 13, color: palette.primaryDark),
-                  Text(
-                    _repeatLabels[task.repeatRule]!,
-                    style: TextStyle(fontSize: 12, color: palette.primaryDark),
-                  ),
-                ],
+                ),
               ],
             ),
           ),
-                ),
-              ),
-            ],
-          ),
-        ),
         ),
       ),
     );

@@ -168,12 +168,15 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
 
   /// 计算提醒时刻（规则见 [computeEventRemindAt]：提前提醒 / 全天事件 /
   /// 已过时刻修正 / 下限钳制）
-  DateTime _remindAt(DateTime date, DateTime? timeDateTime, int remindMinutes) =>
-      computeEventRemindAt(
-        date: date,
-        time: timeDateTime,
-        remindMinutes: remindMinutes,
-      );
+  DateTime _remindAt(
+    DateTime date,
+    DateTime? timeDateTime,
+    int remindMinutes,
+  ) => computeEventRemindAt(
+    date: date,
+    time: timeDateTime,
+    remindMinutes: remindMinutes,
+  );
 
   Future<void> _save() async {
     if (_saving) return;
@@ -188,15 +191,20 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
   Future<void> _doSave() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入事件名称')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入事件名称')));
       return;
     }
     final db = ref.read(databaseProvider);
 
     final timeDateTime = _time != null
-        ? DateTime(_date.year, _date.month, _date.day, _time!.hour, _time!.minute)
+        ? DateTime(
+            _date.year,
+            _date.month,
+            _date.day,
+            _time!.hour,
+            _time!.minute,
+          )
         : null;
 
     if (_isEdit) {
@@ -221,9 +229,8 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
 
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('事件已更新，提醒已同步')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('事件已更新，提醒已同步')));
       }
       return;
     }
@@ -247,9 +254,8 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
 
     if (mounted) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('事件已添加，当天会提醒你')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('事件已添加，当天会提醒你')));
     }
   }
 
@@ -258,7 +264,9 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: Column(
@@ -309,14 +317,19 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.access_time),
               title: Text(
-                _time == null ? '全天（当天 09:00 提醒）' : '时间 ${formatHm(_time!.hour, _time!.minute)}',
+                _time == null
+                    ? '全天（当天 09:00 提醒）'
+                    : '时间 ${formatHm(_time!.hour, _time!.minute)}',
                 style: TextStyle(color: palette.textPrimary),
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _pickTime,
             ),
             const SizedBox(height: 16),
-            Text('提醒', style: TextStyle(fontSize: 13, color: palette.textSecondary)),
+            Text(
+              '提醒',
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
+            ),
             const SizedBox(height: 8),
             MorandiOptionField(
               icon: Icons.notifications_outlined,
@@ -335,7 +348,9 @@ class _AddEventSheetState extends ConsumerState<_AddEventSheet> {
             const SizedBox(height: 20),
             FilledButton(
               onPressed: _saving ? null : _save,
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
               child: Text(
                 _isEdit ? '保存修改' : '添加事件',
                 style: const TextStyle(fontSize: 16),

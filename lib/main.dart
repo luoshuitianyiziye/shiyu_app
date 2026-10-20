@@ -65,8 +65,8 @@ Future<void> main() async {
   // 带异常保护与重入防护：tick 内任一异步步骤抛错不会让当天滚动/提醒调度
   // 静默失败；tick 执行超过 1 分钟时跳过重叠的下一轮。
   var rolling = false;
-  Timer.periodic(const Duration(minutes: 1), (_) async {
-    if (rolling) return; // 上一轮未跑完，跳过本次（幂等由 lastRepeatedDate 保障）
+  Future<void> checkDateRollover() async {
+    if (rolling) return;
     rolling = true;
     try {
       final n = DateTime.now();
@@ -91,12 +91,28 @@ Future<void> main() async {
     } finally {
       rolling = false;
     }
-  });
+  }
+
+  Timer.periodic(const Duration(minutes: 1), (_) => checkDateRollover());
+  // 回到前台立即补查一次：后台期间系统可能挂起 Timer，
+  // 避免「跨天恢复后今日任务/新添加任务列表滞后」。
+  WidgetsBinding.instance.addObserver(_AppLifecycleChecker(checkDateRollover));
 
   runApp(
-    UncontrolledProviderScope(
-      container: container,
-      child: const ShiyuApp(),
-    ),
+    UncontrolledProviderScope(container: container, child: const ShiyuApp()),
   );
+}
+
+/// App 回到前台时触发日期检查（后台定时器可能被系统挂起）
+class _AppLifecycleChecker with WidgetsBindingObserver {
+  _AppLifecycleChecker(this.onResumed);
+
+  final Future<void> Function() onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(onResumed());
+    }
+  }
 }

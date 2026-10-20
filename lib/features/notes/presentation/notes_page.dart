@@ -90,11 +90,13 @@ class _NotesPageState extends ConsumerState<NotesPage> {
               error: (e, _) => Center(child: Text('加载失败：$e')),
               data: (notes) {
                 final filtered = notes.where((n) {
-                  final matchQuery = _query.isEmpty ||
+                  final matchQuery =
+                      _query.isEmpty ||
                       n.title.contains(_query) ||
                       _plainText(n).contains(_query);
                   final matchCategory =
-                      _filterCategoryId == null || n.categoryId == _filterCategoryId;
+                      _filterCategoryId == null ||
+                      n.categoryId == _filterCategoryId;
                   return matchQuery && matchCategory;
                 }).toList();
                 if (filtered.isEmpty) {
@@ -120,7 +122,10 @@ class _NotesPageState extends ConsumerState<NotesPage> {
                   itemCount: filtered.length,
                   itemBuilder: (context, i) => _NoteCard(
                     note: filtered[i],
-                    category: _categoryName(categoriesAsync.value ?? const [], filtered[i].categoryId),
+                    category: _categoryName(
+                      categoriesAsync.value ?? const [],
+                      filtered[i].categoryId,
+                    ),
                     highlightQuery: _query,
                     onTap: () => _openEditor(existing: filtered[i]),
                   ),
@@ -196,7 +201,9 @@ class _CategoryFilterBar extends StatelessWidget {
               onSelected: (_) => onSelect(null),
               selectedColor: palette.accent,
               labelStyle: TextStyle(
-                color: selectedId == null ? palette.primaryDark : palette.textSecondary,
+                color: selectedId == null
+                    ? palette.primaryDark
+                    : palette.textSecondary,
                 fontSize: 12,
               ),
             ),
@@ -259,9 +266,8 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
   Future<void> _add() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入分类名称')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('请输入分类名称')));
       return;
     }
     final db = ref.read(databaseProvider);
@@ -366,7 +372,10 @@ class _CategoryManagerSheetState extends ConsumerState<_CategoryManagerSheet> {
                 child: Center(
                   child: Text(
                     '还没有分类，先添加一个吧',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               )
@@ -542,8 +551,8 @@ class _NoteCard extends ConsumerWidget {
     final images = _images();
     final plain = _plainText(note).trim();
     final query = highlightQuery.trim();
-    final matched = query.isNotEmpty &&
-        plain.toLowerCase().contains(query.toLowerCase());
+    final matched =
+        query.isNotEmpty && plain.toLowerCase().contains(query.toLowerCase());
     final snippet = matched ? _matchSnippet(plain, query) : plain;
     final dateStr = DateFormat('M月d日', 'zh_CN').format(note.updatedAt);
 
@@ -559,102 +568,115 @@ class _NoteCard extends ConsumerWidget {
         child: Card(
           margin: EdgeInsets.zero,
           child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (images.isNotEmpty) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.file(
-                      File(images.first),
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (images.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(
+                        File(images.first),
                         width: 64,
                         height: 64,
-                        color: palette.accent,
-                        child: Icon(Icons.image_outlined, color: palette.primaryDark),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          width: 64,
+                          height: 64,
+                          color: palette.accent,
+                          child: Icon(
+                            Icons.image_outlined,
+                            color: palette.primaryDark,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          if (note.pinned) ...[
-                            Icon(Icons.push_pin, size: 14, color: palette.primaryDark),
-                            const SizedBox(width: 4),
-                          ],
-                          Expanded(
-                            child: Text(
-                              note.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: palette.textPrimary,
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            if (note.pinned) ...[
+                              Icon(
+                                Icons.push_pin,
+                                size: 14,
+                                color: palette.primaryDark,
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (snippet.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        _SnippetText(
-                          text: snippet,
-                          query: matched ? query : '',
-                          style: TextStyle(fontSize: 13, color: palette.textSecondary),
-                          highlightColor: palette.primaryDark,
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Text(
-                            dateStr,
-                            style: TextStyle(fontSize: 11, color: palette.textSecondary),
-                          ),
-                          if (category != null) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: palette.accent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
                               child: Text(
-                                category!,
+                                note.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 10,
-                                  color: palette.primaryDark,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: palette.textPrimary,
                                 ),
                               ),
                             ),
                           ],
+                        ),
+                        if (snippet.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          _SnippetText(
+                            text: snippet,
+                            query: matched ? query : '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: palette.textSecondary,
+                            ),
+                            highlightColor: palette.primaryDark,
+                          ),
                         ],
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              dateStr,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: palette.textSecondary,
+                              ),
+                            ),
+                            if (category != null) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: palette.accent,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  category!,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: palette.primaryDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }
