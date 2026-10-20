@@ -40,6 +40,9 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   late final QuillController _quill;
   final FocusNode _focusNode = FocusNode();
 
+  /// 标题输入框焦点：编辑标题时不应触发「焦点丢失自动退出编辑态」
+  final FocusNode _titleFocusNode = FocusNode();
+
   /// 工具栏按钮共享的焦点节点：不抢焦点，避免点格式按钮时键盘收起退出编辑态
   late final FocusNode _toolbarFocusNode;
 
@@ -117,7 +120,9 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   /// [height] 为键盘高度（逻辑像素）；从 >0 变为 0 视为收起。
   void _handleKeyboardHeight(double height) {
     if (_lastKeyboardHeight > 0 && height <= 0 && !_browsing && !_searching) {
-      if (_recentToolbarTap) {
+      if (_titleFocusNode.hasFocus) {
+        // 标题输入框仍有焦点：正在编辑标题，不退出（键盘可能被系统短暂收起）
+      } else if (_recentToolbarTap) {
         // 刚点过工具栏（应用格式）：键盘收起是副作用，留在编辑态并恢复焦点
         _focusNode.requestFocus();
       } else {
@@ -130,12 +135,14 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   }
 
   /// 焦点丢失兜底：编辑态焦点被夺走（且非搜索态）时回到浏览模式。
-  /// 延迟检查，避免搜索框切换焦点瞬间误退出；点过工具栏则不退出。
+  /// 延迟检查，避免搜索框切换焦点瞬间误退出；点过工具栏/标题框则不退出。
   void _onFocusChanged() {
     if (_browsing || _focusNode.hasFocus) return;
     Future<void>.delayed(const Duration(milliseconds: 250), () {
       if (!mounted || _browsing || _searching) return;
       if (_focusNode.hasFocus) return;
+      // 焦点在标题输入框：正常编辑标题，不退出编辑态
+      if (_titleFocusNode.hasFocus) return;
       if (_recentToolbarTap) {
         // 刚点过格式按钮：恢复焦点，用户可以继续输入
         _focusNode.requestFocus();
@@ -155,10 +162,19 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     _focusNode.requestFocus();
   }
 
+  /// 浏览态点击标题栏 → 进入编辑并把焦点放到标题输入框（方便改标题）
+  void _enterTitleEditMode() {
+    _enterEditMode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _titleFocusNode.requestFocus();
+    });
+  }
+
   /// 退出编辑回到浏览模式：收起键盘、只读，内容保留在编辑器中（未保存修改不落库）
   void _exitEditMode() {
     if (_browsing) return;
     _focusNode.unfocus();
+    _titleFocusNode.unfocus();
     setState(() {
       _browsing = true;
       _quill.readOnly = true;
@@ -357,6 +373,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     _titleController.dispose();
     _quill.dispose();
     _focusNode.dispose();
+    _titleFocusNode.dispose();
     _toolbarFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1297,12 +1314,12 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
       body: SafeArea(
         child: Column(
           children: [
-            // 标题：浏览态只读展示（点击进入编辑），编辑态可编辑
+            // 标题：浏览态只读展示（点击进入编辑并聚焦标题），编辑态可编辑
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: _browsing
                   ? InkWell(
-                      onTap: _enterEditMode,
+                      onTap: _enterTitleEditMode,
                       borderRadius: BorderRadius.circular(8),
                       child: Align(
                         alignment: Alignment.centerLeft,
@@ -1323,6 +1340,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
                     )
                   : TextField(
                       controller: _titleController,
+                      focusNode: _titleFocusNode,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w600,

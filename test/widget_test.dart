@@ -149,6 +149,43 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });
+
+  testWidgets('浏览态点击标题栏可以进入编辑并修改标题', (WidgetTester tester) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(() async => db.close());
+    await db.addNote(NotesCompanion.insert(title: '原标题'));
+
+    final nickname = ValueNotifier<String?>('小屿');
+    final themeId = ValueNotifier<String>('mist_green');
+
+    await tester.pumpWidget(
+      _buildApp(nickname: nickname, themeId: themeId, db: db),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('笔记'));
+    await tester.pumpAndSettle();
+    // 打开已有笔记（浏览态）
+    await tester.tap(find.text('原标题'));
+    await tester.pumpAndSettle();
+
+    // 浏览态点击标题栏 → 进入编辑并聚焦标题输入框
+    await tester.tap(find.text('原标题'));
+    await tester.pumpAndSettle();
+    expect(find.text('保存'), findsOneWidget, reason: '点标题后应进入编辑态');
+
+    // 修改标题并保存
+    await tester.enterText(find.byType(TextField).first, '新标题');
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    final notes = await (db.select(db.notes)).get();
+    expect(notes.first.title, '新标题');
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
 }
 
 Widget _buildApp({
