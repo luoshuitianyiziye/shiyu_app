@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:shiyu_app/core/ai/ai_client.dart';
 import 'package:shiyu_app/core/ai/ai_config.dart';
+import 'package:shiyu_app/core/db/database.dart';
+import 'package:shiyu_app/core/domain/stats.dart';
 import 'package:shiyu_app/features/ai/application/ai_providers.dart';
 import 'package:shiyu_app/features/ai/application/ai_service.dart';
 
@@ -50,7 +52,8 @@ void main() {
     });
 
     test('缺标题的条目被丢弃，其余非法字段回退默认值', () {
-      final content = '{"tasks":['
+      final content =
+          '{"tasks":['
           '{"title":"合法任务"},'
           '{"quadrant":2},'
           '{"title":"象限越界","quadrant":9},'
@@ -64,10 +67,7 @@ void main() {
       );
       expect(result.drafts, hasLength(5));
       expect(result.ignored, 1);
-      expect(
-        result.drafts.firstWhere((d) => d.title == '象限越界').quadrant,
-        2,
-      );
+      expect(result.drafts.firstWhere((d) => d.title == '象限越界').quadrant, 2);
       expect(result.drafts.firstWhere((d) => d.title == '日期越界').date, isNull);
       expect(
         result.drafts.firstWhere((d) => d.title == '时间非法').startTime,
@@ -80,9 +80,7 @@ void main() {
     });
 
     test('超过 20 条时截断并计数', () {
-      final tasks = [
-        for (var i = 0; i < 25; i++) '{"title":"任务$i"}',
-      ].join(',');
+      final tasks = [for (var i = 0; i < 25; i++) '{"title":"任务$i"}'].join(',');
       final result = AiService.parseDrafts(
         '{"tasks":[$tasks]}',
         now: DateTime(2026, 10, 20),
@@ -160,8 +158,11 @@ void main() {
       await expectLater(
         container.read(aiServiceProvider).generateTasks('测试'),
         throwsA(
-          isA<AiException>()
-              .having((e) => e.kind, 'kind', AiErrorKind.notConfigured),
+          isA<AiException>().having(
+            (e) => e.kind,
+            'kind',
+            AiErrorKind.notConfigured,
+          ),
         ),
       );
     });
@@ -190,6 +191,106 @@ void main() {
         throwsA(isA<AiException>()),
       );
       expect(fake.lastUser, isNull); // 未发起请求
+    });
+  });
+
+  group('复盘建议 / 摘要 / 任务建议 / 笔记转任务', () {
+    ProviderContainer containerWith(AiChat fake) => ProviderContainer(
+      overrides: [
+        aiConfigProvider.overrideWith(
+          (ref) async => const AiConfig(
+            enabled: true,
+            baseUrl: 'https://api.deepseek.com',
+            model: 'deepseek-chat',
+            apiKey: 'sk-test',
+          ),
+        ),
+        aiClientProvider.overrideWithValue(fake),
+      ],
+    );
+
+    test('reviewToday 提取 text 字段（只发送聚合数字）', () async {
+      final fake = _FakeChat('{"text":"今天很棒，继续保持～"}');
+      final container = containerWith(fake);
+      addTearDown(container.dispose);
+
+      final text = await container
+          .read(aiServiceProvider)
+          .reviewToday(
+            const StatsSnapshot(
+              totalPomodoros: 3,
+              totalMinutes: 75,
+              weekPomodoros: 3,
+              weekMinutes: 75,
+              last7Days: [0, 0, 0, 0, 0, 0, 3],
+              totalTasksDone: 5,
+              streakDays: 4,
+              rankIndex: 2,
+              todayTotal: 4,
+              todayDone: 3,
+            ),
+          );
+      expect(text, '今天很棒，继续保持～');
+      expect(fake.lastUser, contains('75%')); // 完成率聚合
+      expect(fake.lastUser, contains('连续打卡'));
+    });
+
+    test('summarizeNote 解析摘要与标签', () async {
+      final fake = _FakeChat(
+        '{"summary":"这是一篇关于考试复习的笔记","tags":["学习","考试","复习"]}',
+      );
+      final container = containerWith(fake);
+      addTearDown(container.dispose);
+
+      final summary = await container
+          .read(aiServiceProvider)
+          .summarizeNote('期末考试复习计划：每天两小时……');
+      expect(summary.summary, '这是一篇关于考试复习的笔记');
+      expect(summary.tags, ['学习', '考试', '复习']);
+      expect(fake.lastUser, contains('期末考试复习计划'));
+    });
+
+    test('suggestTasks 提取建议文本', () async {
+      final fake = _FakeChat('{"text":"把写周报移到上午\\n给复习任务加时段"}');
+      final container = containerWith(fake);
+      addTearDown(container.dispose);
+
+      final text = await container.read(aiServiceProvider).suggestTasks([
+        TaskRow(
+          id: 1,
+          title: '写周报',
+          quadrant: 1,
+          date: DateTime(2026, 10, 20),
+          startTime: null,
+          endTime: null,
+          difficulty: 2,
+          repeatRule: 'none',
+          lastRepeatedDate: null,
+          isDone: false,
+          doneAt: null,
+          xpAwarded: 0,
+          pomodoroCount: 0,
+          sort: 0,
+          deleted: false,
+          updatedAt: DateTime(2026, 10, 20),
+        ),
+      ]);
+      expect(text, contains('把写周报移到上午'));
+      expect(fake.lastUser, contains('写周报'));
+    });
+
+    test('generateTasksFromNote 截断超长笔记并包含笔记内容', () async {
+      final fake = _FakeChat('{"tasks":[{"title":"复习笔记"}]}');
+      final container = containerWith(fake);
+      addTearDown(container.dispose);
+
+      final longNote = '笔记内容' * 800; // 超过 2000 字
+      final result = await container
+          .read(aiServiceProvider)
+          .generateTasksFromNote(longNote);
+      expect(result.drafts, hasLength(1));
+      expect(fake.lastUser, contains('从下面这篇笔记中提取待办任务'));
+      expect(fake.lastUser!.length, lessThan(3000)); // 已截断
     });
   });
 }

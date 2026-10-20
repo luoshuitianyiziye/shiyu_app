@@ -538,11 +538,11 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
   }
 
   AiConfig _currentConfig() => AiConfig(
-        enabled: _enabled,
-        baseUrl: _baseUrlController.text.trim(),
-        model: _modelController.text.trim(),
-        apiKey: _keyController.text.trim(),
-      );
+    enabled: _enabled,
+    baseUrl: _baseUrlController.text.trim(),
+    model: _modelController.text.trim(),
+    apiKey: _keyController.text.trim(),
+  );
 
   Future<void> _save() async {
     if (_saving) return;
@@ -567,7 +567,9 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
     }
     setState(() => _testing = true);
     try {
-      await ref.read(aiClientProvider).chatJson(
+      await ref
+          .read(aiClientProvider)
+          .chatJson(
             config: config,
             systemPrompt: '你是测试助手，只回复 JSON：{"ok":true}',
             userPrompt: '测试连接',

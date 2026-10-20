@@ -4,10 +4,13 @@ import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ai/ai_client.dart';
+import '../../../core/ai/ai_config.dart';
+import '../../../core/db/database.dart';
+import '../../../core/domain/stats.dart';
 import '../data/task_draft.dart';
 import 'ai_providers.dart';
 
-/// AI 生成结果（含被丢弃的非法条目数）
+/// AI 生成任务结果（含被丢弃的非法条目数）
 class AiGenerateResult {
   const AiGenerateResult({required this.drafts, required this.ignored});
 
@@ -17,9 +20,17 @@ class AiGenerateResult {
   final int ignored;
 }
 
+/// 笔记摘要与标签
+class NoteSummary {
+  const NoteSummary({required this.summary, required this.tags});
+
+  final String summary;
+  final List<String> tags;
+}
+
 final aiServiceProvider = Provider<AiService>((ref) => AiService(ref));
 
-/// AI 应用服务：构造提示词、调用模型、解析并校验任务草案。
+/// AI 应用服务：构造提示词、调用模型、解析并校验结果。
 ///
 /// 失败统一抛 [AiException]（message 可直接展示给用户）。
 class AiService {
@@ -33,34 +44,111 @@ class AiService {
   /// 单次生成最大任务条数
   static const int maxDrafts = 20;
 
+  // ---------- 生成任务（自然语言 / 批量拆解 / 目标拆分） ----------
+
   Future<AiGenerateResult> generateTasks(String input) async {
-    final text = input.trim();
+    final text = _validateInput(input);
+    return _generateFrom(text);
+  }
+
+  /// 从笔记正文提取任务（截取前 2000 字）
+  Future<AiGenerateResult> generateTasksFromNote(String noteText) async {
+    final text = noteText.trim();
     if (text.isEmpty) {
-      throw const AiException('先说说你想做什么吧～', kind: AiErrorKind.empty);
+      throw const AiException('笔记是空的，先写点内容吧', kind: AiErrorKind.empty);
     }
-    if (text.length > maxInputLength) {
-      throw const AiException(
-        '输入太长啦，请分几次发送（最多 $maxInputLength 字）',
-        kind: AiErrorKind.parse,
-      );
-    }
-    final config = await _ref.read(aiConfigProvider.future);
-    if (!config.isConfigured) {
-      throw const AiException(
-        '请先在设置中启用 AI 并填写 API Key',
-        kind: AiErrorKind.notConfigured,
-      );
-    }
+    final truncated = text.length > maxInputLength
+        ? text.substring(0, maxInputLength)
+        : text;
+    return _generateFrom('从下面这篇笔记中提取待办任务：\n$truncated');
+  }
+
+  Future<AiGenerateResult> _generateFrom(String userPrompt) async {
+    final config = await _requireConfig();
     final now = DateTime.now();
     final content = await _ref
         .read(aiClientProvider)
         .chatJson(
           config: config,
           systemPrompt: buildSystemPrompt(now),
-          userPrompt: text,
+          userPrompt: userPrompt,
         );
     return parseDrafts(content, now: now);
   }
+
+  // ---------- 每日复盘建议（只发送聚合数字） ----------
+
+  Future<String> reviewToday(StatsSnapshot stats) async {
+    final config = await _requireConfig();
+    final rate = (stats.todayRate * 100).round();
+    final content = await _ref
+        .read(aiClientProvider)
+        .chatJson(
+          config: config,
+          systemPrompt: '你是时屿 App 的 AI 小助手「小屿」，语气温柔简短，只输出 JSON。',
+          userPrompt:
+              '今日完成率 $rate%，完成 ${stats.todayDone}/${stats.todayTotal} 项任务，'
+              '本周番茄 ${stats.weekPomodoros} 个，连续打卡 ${stats.streakDays} 天。'
+              '请给用户一句 40 字以内的鼓励或建议（中文，不要罗列数字）。'
+              '只输出 JSON：{"text":"..."}',
+        );
+    return _extractText(content);
+  }
+
+  // ---------- 笔记摘要与标签 ----------
+
+  Future<NoteSummary> summarizeNote(String noteText) async {
+    final text = noteText.trim();
+    if (text.isEmpty) {
+      throw const AiException('笔记是空的，先写点内容吧', kind: AiErrorKind.empty);
+    }
+    final truncated = text.length > maxInputLength
+        ? text.substring(0, maxInputLength)
+        : text;
+    final config = await _requireConfig();
+    final content = await _ref
+        .read(aiClientProvider)
+        .chatJson(
+          config: config,
+          systemPrompt: '你是时屿 App 的笔记助手，只输出 JSON。',
+          userPrompt:
+              '请为下面这篇笔记生成摘要（80 字以内）和 3-5 个标签（每个标签 2-6 字）。\n'
+              '只输出 JSON：{"summary":"...","tags":["..."]}\n\n笔记内容：\n$truncated',
+        );
+    return parseSummary(content);
+  }
+
+  // ---------- 任务优化建议（只发送任务标题/象限/时段） ----------
+
+  Future<String> suggestTasks(List<TaskRow> tasks) async {
+    if (tasks.isEmpty) {
+      throw const AiException('今天还没有任务，先添加几个吧', kind: AiErrorKind.empty);
+    }
+    final config = await _requireConfig();
+    final brief = tasks
+        .take(20)
+        .map((t) {
+          final time = t.startTime == null
+              ? '无时段'
+              : '${t.startTime!.hour}:${t.startTime!.minute.toString().padLeft(2, '0')}';
+          return '- ${t.title}（象限${t.quadrant}，难度${t.difficulty}，$time，'
+              '${t.isDone ? '已完成' : '未完成'}）';
+        })
+        .join('\n');
+    final content = await _ref
+        .read(aiClientProvider)
+        .chatJson(
+          config: config,
+          systemPrompt: '你是时屿 App 的任务规划助手，只输出 JSON。',
+          userPrompt:
+              '以下是用户今天的一些任务：\n$brief\n\n'
+              '请给出 2-3 条简短的任务优化建议（每条 30 字以内，如调整象限/拆分/安排时段），只建议不修改。'
+              '只输出 JSON：{"text":"建议1\\n建议2"}',
+        );
+    return _extractText(content);
+  }
+
+  // ---------- 解析与校验 ----------
 
   /// 解析模型输出的 JSON → 任务草案（严格校验，非法条目丢弃并计数）
   static AiGenerateResult parseDrafts(String content, {DateTime? now}) {
@@ -80,6 +168,37 @@ class AiService {
       }
     }
     return AiGenerateResult(drafts: drafts, ignored: ignored);
+  }
+
+  /// 解析摘要 JSON
+  static NoteSummary parseSummary(String content) {
+    final map = _decodeJsonObject(content);
+    final summary = (map['summary'] as String?)?.trim() ?? '';
+    final tags = <String>[];
+    final rawTags = map['tags'];
+    if (rawTags is List) {
+      for (final t in rawTags) {
+        if (t is String && t.trim().isNotEmpty && tags.length < 6) {
+          tags.add(t.trim());
+        }
+      }
+    }
+    if (summary.isEmpty) {
+      throw const AiException('AI 没有返回摘要，请重试', kind: AiErrorKind.empty);
+    }
+    return NoteSummary(summary: summary, tags: tags);
+  }
+
+  /// 从 {"text": "..."} 中提取文案；非 JSON 时回退为纯文本
+  static String _extractText(String content) {
+    try {
+      final map = _decodeJsonObject(content);
+      final text = map['text'];
+      if (text is String && text.trim().isNotEmpty) return text.trim();
+    } catch (_) {
+      // 非 JSON：回退为纯文本
+    }
+    return content.replaceAll('```json', '').replaceAll('```', '').trim();
   }
 
   static Map<String, dynamic> _decodeJsonObject(String content) {
@@ -162,6 +281,31 @@ class AiService {
     return n;
   }
 
+  String _validateInput(String input) {
+    final text = input.trim();
+    if (text.isEmpty) {
+      throw const AiException('先说说你想做什么吧～', kind: AiErrorKind.empty);
+    }
+    if (text.length > maxInputLength) {
+      throw const AiException(
+        '输入太长啦，请分几次发送（最多 $maxInputLength 字）',
+        kind: AiErrorKind.parse,
+      );
+    }
+    return text;
+  }
+
+  Future<AiConfig> _requireConfig() async {
+    final config = await _ref.read(aiConfigProvider.future);
+    if (!config.isConfigured) {
+      throw const AiException(
+        '请先在设置中启用 AI 并填写 API Key',
+        kind: AiErrorKind.notConfigured,
+      );
+    }
+    return config;
+  }
+
   /// 系统提示词（包含当前日期，帮助模型换算「今天/明天/下周三」）
   static String buildSystemPrompt(DateTime now) {
     String two(int v) => v.toString().padLeft(2, '0');
@@ -175,7 +319,7 @@ class AiService {
 规则：
 1. quadrant：1=重要紧急 2=重要不紧急 3=紧急不重要 4=不重要不紧急，默认 2
 2. difficulty：1=简单 2=普通 3=困难，默认 2
-3. date：用户说“今天/明天/后天/本周X/下周X”时按当前日期换算；没提日期用今天
+3. date：用户说“今天/明天/后天/本周X/下周X”时按当前日期换算；没提日期用今天；要求多天计划时按天分配日期
 4. startTime：只有用户明确说了时间才填 HH:mm，否则 null
 5. repeatRule：none / daily / weekdays / weekly
 6. 一段文字（会议纪要、待办清单）或一个目标（如“准备期末考试”）都可能拆出多条任务

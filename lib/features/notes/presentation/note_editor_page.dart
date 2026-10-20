@@ -12,10 +12,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
+import '../../../core/ai/ai_client.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../../ai/application/ai_service.dart';
+import '../../ai/presentation/ai_draft_list.dart';
 import '../application/note_service.dart';
 import '../data/note_body.dart';
 import '../data/note_image_store.dart';
@@ -586,6 +589,179 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     }
   }
 
+  // ---------- AI 助手（提取任务 / 摘要） ----------
+
+  void _showToast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// 把笔记正文交给 AI 提取任务，弹出草案列表供确认
+  Future<void> _aiExtractTasks() async {
+    final text = _quill.document.toPlainText();
+    if (text.trim().isEmpty) {
+      _showToast('笔记是空的，先写点内容吧');
+      return;
+    }
+    _showToast('AI 正在阅读笔记…');
+    try {
+      final result = await ref
+          .read(aiServiceProvider)
+          .generateTasksFromNote(text);
+      if (!mounted) return;
+      if (result.drafts.isEmpty) {
+        _showToast('没有从笔记里找到可执行的任务');
+        return;
+      }
+      final palette = Theme.of(context).extension<MorandiPalette>()!;
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: palette.card,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (sheetContext) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '从笔记提取任务',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AiDraftList(
+                  drafts: result.drafts,
+                  onAdded: () => Navigator.of(sheetContext).pop(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } on AiException catch (e) {
+      if (mounted) _showToast(e.message);
+    } catch (e) {
+      if (mounted) _showToast('出错了：$e');
+    }
+  }
+
+  /// 生成摘要与标签，可插入正文开头 / 保存标签
+  Future<void> _aiSummarize() async {
+    final text = _quill.document.toPlainText();
+    if (text.trim().isEmpty) {
+      _showToast('笔记是空的，先写点内容吧');
+      return;
+    }
+    _showToast('AI 正在整理摘要…');
+    try {
+      final summary = await ref.read(aiServiceProvider).summarizeNote(text);
+      if (!mounted) return;
+      final palette = Theme.of(context).extension<MorandiPalette>()!;
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('AI 摘要'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  summary.summary,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                if (summary.tags.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final tag in summary.tags)
+                        Chip(
+                          label: Text(
+                            tag,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          backgroundColor: palette.accent.withValues(
+                            alpha: 0.4,
+                          ),
+                          side: BorderSide.none,
+                          padding: EdgeInsets.zero,
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _applyAiTags(summary.tags);
+              },
+              child: const Text('保存标签'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _insertAiSummary(summary.summary);
+              },
+              child: const Text('插入到开头'),
+            ),
+          ],
+        ),
+      );
+    } on AiException catch (e) {
+      if (mounted) _showToast(e.message);
+    } catch (e) {
+      if (mounted) _showToast('出错了：$e');
+    }
+  }
+
+  void _insertAiSummary(String summary) {
+    _quill.document.insert(0, '$summary\n\n');
+    // 插入后进入编辑态，便于用户确认并保存
+    _enterEditMode();
+    _showToast('摘要已插入开头，记得点保存');
+  }
+
+  Future<void> _applyAiTags(List<String> tags) async {
+    final existing = widget.existing;
+    if (existing == null) {
+      _showToast('新笔记保存后才能保存标签');
+      return;
+    }
+    if (tags.isEmpty) return;
+    try {
+      await ref
+          .read(noteServiceProvider)
+          .update(existing.id, NotesCompanion(tags: Value(jsonEncode(tags))));
+      _showToast('标签已保存');
+    } catch (e) {
+      _showToast('保存标签失败：$e');
+    }
+  }
+
   Future<void> _save() async {
     if (_saving) return;
     final title = _titleController.text.trim();
@@ -1012,6 +1188,23 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
                     onPressed: _copyPlainText,
                     icon: const Icon(Icons.copy_all_outlined),
                     tooltip: '复制全文',
+                  ),
+                // 浏览态：AI 助手（从笔记提取任务 / 生成摘要）
+                if (_browsing)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.auto_awesome),
+                    tooltip: 'AI 助手',
+                    onSelected: (value) {
+                      if (value == 'tasks') {
+                        _aiExtractTasks();
+                      } else if (value == 'summary') {
+                        _aiSummarize();
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'tasks', child: Text('提取任务')),
+                      PopupMenuItem(value: 'summary', child: Text('生成摘要')),
+                    ],
                   ),
                 // 编辑态：完成（回到浏览）+ 保存（落库并返回列表）
                 if (!_browsing) ...[

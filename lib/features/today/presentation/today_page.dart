@@ -6,12 +6,15 @@ import 'package:go_router/go_router.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/empty_state.dart';
 import '../../../app/widgets/slidable_actions.dart';
+import '../../../core/ai/ai_client.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/domain/ranks.dart';
+import '../../../core/domain/stats.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../../ai/application/ai_service.dart';
 import '../../growth/presentation/rank_up_dialog.dart';
 import '../application/task_service.dart';
 import '../data/quadrants.dart';
@@ -40,6 +43,13 @@ class TodayPage extends ConsumerWidget {
         title: Text(
           '${today.month}月${today.day}日 · 周${_weekdayNames[today.weekday - 1]}',
         ),
+        actions: [
+          IconButton(
+            onPressed: () => _showAiTaskAdvice(context, ref),
+            icon: const Icon(Icons.lightbulb_outline),
+            tooltip: 'AI 任务建议',
+          ),
+        ],
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
@@ -78,6 +88,71 @@ class TodayPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// AI 任务优化建议（只建议不修改数据）
+  Future<void> _showAiTaskAdvice(BuildContext context, WidgetRef ref) async {
+    final tasks = ref.read(todayTasksProvider).value ?? const <TaskRow>[];
+    if (tasks.isEmpty) {
+      FeedbackDebouncer.toast(context, '今天还没有任务，先添加几个吧');
+      return;
+    }
+    FeedbackDebouncer.toast(context, 'AI 正在看你的任务…');
+    try {
+      final text = await ref.read(aiServiceProvider).suggestTasks(tasks);
+      if (!context.mounted) return;
+      final palette = Theme.of(context).extension<MorandiPalette>()!;
+      await showModalBottomSheet(
+        context: context,
+        backgroundColor: palette.card,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (ctx) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.lightbulb_outline,
+                      size: 20,
+                      color: palette.primaryDark,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI 任务建议',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: palette.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: palette.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      );
+    } on AiException catch (e) {
+      if (context.mounted) FeedbackDebouncer.toast(context, e.message);
+    } catch (e) {
+      if (context.mounted) FeedbackDebouncer.toast(context, 'AI 出了点小问题：$e');
+    }
   }
 }
 
@@ -195,12 +270,35 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-/// 今日复盘卡片：完成率 + 本周番茄数 + 连续打卡（数据来自统计快照）
-class _DailyReviewCard extends ConsumerWidget {
+/// 今日复盘卡片：完成率 + 本周番茄数 + 连续打卡；可让 AI 说一句鼓励/建议
+class _DailyReviewCard extends ConsumerStatefulWidget {
   const _DailyReviewCard();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DailyReviewCard> createState() => _DailyReviewCardState();
+}
+
+class _DailyReviewCardState extends ConsumerState<_DailyReviewCard> {
+  String? _advice;
+  bool _loading = false;
+
+  Future<void> _askAi(StatsSnapshot stats) async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      final text = await ref.read(aiServiceProvider).reviewToday(stats);
+      if (mounted) setState(() => _advice = text);
+    } on AiException catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, e.message);
+    } catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, 'AI 出了点小问题：$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final stats = ref.watch(statsSnapshotProvider).value;
     if (stats == null) return const SizedBox.shrink();
@@ -211,39 +309,80 @@ class _DailyReviewCard extends ConsumerWidget {
       child: Card(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
+          child: Column(
             children: [
-              Icon(
-                Icons.insights_outlined,
-                size: 18,
-                color: palette.primaryDark,
+              Row(
+                children: [
+                  Icon(
+                    Icons.insights_outlined,
+                    size: 18,
+                    color: palette.primaryDark,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          stats.todayTotal == 0
+                              ? '今日还没有任务，去添加一个吧'
+                              : '今日完成 ${stats.todayDone}/${stats.todayTotal} 项'
+                                    '（${(rate * 100).round()}%）',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: palette.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '本周番茄 ${stats.weekPomodoros} · 连续打卡 ${stats.streakDays} 天',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: palette.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _loading ? null : () => _askAi(stats),
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome, size: 18),
+                    color: palette.primaryDark,
+                    tooltip: 'AI 说两句',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
+              if (_advice != null) ...[
+                const SizedBox(height: 6),
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      stats.todayTotal == 0
-                          ? '今日还没有任务，去添加一个吧'
-                          : '今日完成 ${stats.todayDone}/${stats.todayTotal} 项'
-                                '（${(rate * 100).round()}%）',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: palette.textPrimary,
-                      ),
+                    Icon(
+                      Icons.chat_bubble_outline,
+                      size: 14,
+                      color: palette.primaryDark,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '本周番茄 ${stats.weekPomodoros} · 连续打卡 ${stats.streakDays} 天',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: palette.textSecondary,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _advice!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.5,
+                          color: palette.textPrimary,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
+              ],
             ],
           ),
         ),

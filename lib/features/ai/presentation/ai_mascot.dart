@@ -30,8 +30,7 @@ class AiMascot extends StatefulWidget {
   State<AiMascot> createState() => _AiMascotState();
 }
 
-class _AiMascotState extends State<AiMascot>
-    with TickerProviderStateMixin {
+class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
   late final AnimationController _idleController;
   late final AnimationController _reactController;
   late String _line;
@@ -87,8 +86,8 @@ class _AiMascotState extends State<AiMascot>
       AiMascotMood.sad => _sadLines,
       AiMascotMood.idle => _idleLines,
     };
-    _lineSeed = (_lineSeed + 1 + math.Random().nextInt(pool.length)) %
-        pool.length;
+    _lineSeed =
+        (_lineSeed + 1 + math.Random().nextInt(pool.length)) % pool.length;
     return pool[_lineSeed];
   }
 
