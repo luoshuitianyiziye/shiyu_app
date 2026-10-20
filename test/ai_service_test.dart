@@ -14,22 +14,39 @@ class _FakeChat implements AiChat {
   _FakeChat(this.response);
 
   final String response;
-  AiConfig? lastConfig;
+  AiProfile? lastProfile;
   String? lastSystem;
   String? lastUser;
 
   @override
   Future<String> chatJson({
-    required AiConfig config,
+    required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
   }) async {
-    lastConfig = config;
+    lastProfile = profile;
     lastSystem = systemPrompt;
     lastUser = userPrompt;
     return response;
   }
 }
+
+AiConfig _configured() => const AiConfig(
+  enabled: true,
+  profiles: [
+    AiProfile(
+      id: 'p1',
+      name: '测试配置',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-chat',
+      apiKey: 'sk-test',
+    ),
+  ],
+  activeId: 'p1',
+);
+
+AiConfig _unconfigured() =>
+    const AiConfig(enabled: false, profiles: [], activeId: '');
 
 void main() {
   group('parseDrafts', () {
@@ -115,14 +132,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          aiConfigProvider.overrideWith(
-            (ref) async => const AiConfig(
-              enabled: true,
-              baseUrl: 'https://api.deepseek.com',
-              model: 'deepseek-chat',
-              apiKey: 'sk-test',
-            ),
-          ),
+          aiConfigProvider.overrideWith((ref) async => _configured()),
           aiClientProvider.overrideWithValue(fake),
         ],
       );
@@ -136,20 +146,13 @@ void main() {
       expect(result.drafts.first.quadrant, 3);
       expect(fake.lastUser, '明天下午三点写周报');
       expect(fake.lastSystem, contains('当前日期'));
-      expect(fake.lastConfig?.apiKey, 'sk-test');
+      expect(fake.lastProfile?.apiKey, 'sk-test');
     });
 
     test('未配置时抛 notConfigured 异常', () async {
       final container = ProviderContainer(
         overrides: [
-          aiConfigProvider.overrideWith(
-            (ref) async => const AiConfig(
-              enabled: false,
-              baseUrl: '',
-              model: '',
-              apiKey: '',
-            ),
-          ),
+          aiConfigProvider.overrideWith((ref) async => _unconfigured()),
           aiClientProvider.overrideWithValue(_FakeChat('{}')),
         ],
       );
@@ -171,14 +174,7 @@ void main() {
       final fake = _FakeChat('{}');
       final container = ProviderContainer(
         overrides: [
-          aiConfigProvider.overrideWith(
-            (ref) async => const AiConfig(
-              enabled: true,
-              baseUrl: 'https://api.deepseek.com',
-              model: 'deepseek-chat',
-              apiKey: 'sk-test',
-            ),
-          ),
+          aiConfigProvider.overrideWith((ref) async => _configured()),
           aiClientProvider.overrideWithValue(fake),
         ],
       );
@@ -197,14 +193,7 @@ void main() {
   group('复盘建议 / 摘要 / 任务建议 / 笔记转任务', () {
     ProviderContainer containerWith(AiChat fake) => ProviderContainer(
       overrides: [
-        aiConfigProvider.overrideWith(
-          (ref) async => const AiConfig(
-            enabled: true,
-            baseUrl: 'https://api.deepseek.com',
-            model: 'deepseek-chat',
-            apiKey: 'sk-test',
-          ),
-        ),
+        aiConfigProvider.overrideWith((ref) async => _configured()),
         aiClientProvider.overrideWithValue(fake),
       ],
     );

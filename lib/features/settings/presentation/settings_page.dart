@@ -495,7 +495,7 @@ class _BackupCardState extends ConsumerState<_BackupCard> {
   }
 }
 
-/// AI 助手设置卡片：启用开关 / 服务地址 / 模型 / API Key / 测试连接 / 保存
+/// AI 助手设置卡片：启用开关 + 多配置管理（新增/编辑/删除/一键切换）+ 测试连接
 class _AiSettingsCard extends ConsumerStatefulWidget {
   const _AiSettingsCard();
 
@@ -504,12 +504,8 @@ class _AiSettingsCard extends ConsumerStatefulWidget {
 }
 
 class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
-  final _baseUrlController = TextEditingController();
-  final _modelController = TextEditingController();
-  final _keyController = TextEditingController();
-  bool _enabled = false;
-  bool _obscure = true;
-  bool _saving = false;
+  AiConfig? _config;
+  bool _busy = false;
   bool _testing = false;
 
   @override
@@ -520,49 +516,99 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
 
   Future<void> _load() async {
     final config = await ref.read(aiConfigProvider.future);
-    if (!mounted) return;
-    setState(() {
-      _enabled = config.enabled;
-      _baseUrlController.text = config.baseUrl;
-      _modelController.text = config.model;
-      _keyController.text = config.apiKey;
-    });
+    if (mounted) setState(() => _config = config);
   }
 
-  @override
-  void dispose() {
-    _baseUrlController.dispose();
-    _modelController.dispose();
-    _keyController.dispose();
-    super.dispose();
-  }
-
-  AiConfig _currentConfig() => AiConfig(
-    enabled: _enabled,
-    baseUrl: _baseUrlController.text.trim(),
-    model: _modelController.text.trim(),
-    apiKey: _keyController.text.trim(),
-  );
-
-  Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
+  Future<void> _persist(AiConfig next) async {
+    if (_busy) return;
+    setState(() => _busy = true);
     try {
-      await _currentConfig().save();
+      await next.save();
       ref.invalidate(aiConfigProvider);
-      if (mounted) FeedbackDebouncer.toast(context, 'AI 设置已保存');
+      if (mounted) setState(() => _config = next);
     } catch (e) {
       if (mounted) FeedbackDebouncer.toast(context, '保存失败：$e');
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
+  Future<void> _toggleEnabled(bool value) async {
+    final config = _config;
+    if (config == null) return;
+    await _persist(config.copyWith(enabled: value));
+  }
+
+  Future<void> _switchTo(String id) async {
+    final config = _config;
+    if (config == null || config.activeId == id) return;
+    await _persist(config.copyWith(activeId: id));
+    if (mounted) FeedbackDebouncer.toast(context, '已切换 AI 配置');
+  }
+
+  Future<void> _addProfile() async {
+    final config = _config;
+    if (config == null) return;
+    final created = await _openEditor(title: '新增配置');
+    if (created == null || !mounted) return;
+    final next = config.copyWith(
+      profiles: [...config.profiles, created],
+      activeId: config.profiles.isEmpty ? created.id : config.activeId,
+    );
+    await _persist(next);
+  }
+
+  Future<void> _editProfile(AiProfile profile) async {
+    final config = _config;
+    if (config == null) return;
+    final edited = await _openEditor(title: '编辑配置', profile: profile);
+    if (edited == null || !mounted) return;
+    final next = config.copyWith(
+      profiles: [
+        for (final p in config.profiles) p.id == edited.id ? edited : p,
+      ],
+    );
+    await _persist(next);
+  }
+
+  Future<AiProfile?> _openEditor({required String title, AiProfile? profile}) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    return showModalBottomSheet<AiProfile>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: palette.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _AiProfileEditorSheet(title: title, profile: profile),
+    );
+  }
+
+  Future<void> _deleteProfile(AiProfile profile) async {
+    final config = _config;
+    if (config == null) return;
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除配置',
+      content: '删除「${profile.name}」后，其 API Key 也会从本机清除',
+      confirmText: '删除',
+      danger: true,
+    );
+    if (ok != true || !mounted) return;
+    final remaining = [
+      for (final p in config.profiles)
+        if (p.id != profile.id) p,
+    ];
+    final nextActive = config.activeId == profile.id
+        ? (remaining.isEmpty ? '' : remaining.first.id)
+        : config.activeId;
+    await _persist(config.copyWith(profiles: remaining, activeId: nextActive));
+  }
+
   Future<void> _test() async {
-    if (_testing) return;
-    final config = _currentConfig();
-    if (!config.isConfigured) {
-      FeedbackDebouncer.toast(context, '请先填写服务地址、模型与 API Key');
+    final profile = _config?.active;
+    if (profile == null || profile.apiKey.isEmpty) {
+      FeedbackDebouncer.toast(context, '请先添加配置并填写 API Key');
       return;
     }
     setState(() => _testing = true);
@@ -570,7 +616,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
       await ref
           .read(aiClientProvider)
           .chatJson(
-            config: config,
+            profile: profile,
             systemPrompt: '你是测试助手，只回复 JSON：{"ok":true}',
             userPrompt: '测试连接',
           );
@@ -587,6 +633,22 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
+    final config = _config;
+
+    if (config == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Card(
       child: Padding(
@@ -598,17 +660,234 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
               contentPadding: EdgeInsets.zero,
               title: const Text('启用 AI 助手'),
               subtitle: const Text('今日页「✨」按钮打开 AI 助手'),
-              value: _enabled,
+              value: config.enabled,
               activeTrackColor: palette.primary,
-              onChanged: (v) => setState(() => _enabled = v),
+              onChanged: _busy ? null : _toggleEnabled,
+            ),
+            if (config.profiles.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '还没有配置，点下面「添加配置」填写服务商与 API Key',
+                  style: TextStyle(fontSize: 12, color: palette.textSecondary),
+                ),
+              )
+            else
+              for (final profile in config.profiles)
+                _profileTile(profile, config.activeId == profile.id, palette),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                Icons.add_circle_outline,
+                color: palette.primaryDark,
+              ),
+              title: const Text('添加配置'),
+              subtitle: const Text('可添加多个服务商，随时一键切换'),
+              onTap: _busy ? null : _addProfile,
             ),
             const SizedBox(height: 4),
+            Text(
+              'API Key 通过加密存储保存在本机；只有你输入的文本会发送给所选服务商。',
+              style: TextStyle(fontSize: 11, color: palette.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _testing || config.active == null ? null : _test,
+                icon: _testing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.wifi_tethering, size: 18),
+                label: Text(_testing ? '测试中…' : '测试当前配置'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileTile(AiProfile profile, bool active, MorandiPalette palette) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        active ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: active ? palette.primaryDark : palette.outline,
+        size: 22,
+      ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              profile.name,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                color: palette.textPrimary,
+              ),
+            ),
+          ),
+          if (active) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: palette.accent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '使用中',
+                style: TextStyle(fontSize: 10, color: palette.primaryDark),
+              ),
+            ),
+          ],
+        ],
+      ),
+      subtitle: Text(
+        '${profile.model} · ${profile.baseUrl}',
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(fontSize: 11, color: palette.textSecondary),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: _busy ? null : () => _editProfile(profile),
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            tooltip: '编辑',
+          ),
+          IconButton(
+            onPressed: _busy ? null : () => _deleteProfile(profile),
+            icon: Icon(Icons.delete_outline, size: 18, color: palette.danger),
+            tooltip: '删除',
+          ),
+        ],
+      ),
+      onTap: _busy || active ? null : () => _switchTo(profile.id),
+    );
+  }
+}
+
+/// 配置编辑弹层（新增/编辑共用）
+class _AiProfileEditorSheet extends StatefulWidget {
+  const _AiProfileEditorSheet({required this.title, this.profile});
+
+  final String title;
+  final AiProfile? profile;
+
+  @override
+  State<_AiProfileEditorSheet> createState() => _AiProfileEditorSheetState();
+}
+
+class _AiProfileEditorSheetState extends State<_AiProfileEditorSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _baseUrlController;
+  late final TextEditingController _modelController;
+  late final TextEditingController _keyController;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.profile;
+    _nameController = TextEditingController(text: p?.name ?? '');
+    _baseUrlController = TextEditingController(
+      text: p?.baseUrl ?? AiConfig.defaultBaseUrl,
+    );
+    _modelController = TextEditingController(
+      text: p?.model ?? AiConfig.defaultModel,
+    );
+    _keyController = TextEditingController(text: p?.apiKey ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _baseUrlController.dispose();
+    _modelController.dispose();
+    _keyController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      FeedbackDebouncer.toast(context, '给配置起个名字吧');
+      return;
+    }
+    final baseUrl = _baseUrlController.text.trim();
+    final model = _modelController.text.trim();
+    if (baseUrl.isEmpty || model.isEmpty) {
+      FeedbackDebouncer.toast(context, '请填写服务地址和模型');
+      return;
+    }
+    final existing = widget.profile;
+    Navigator.of(context).pop(
+      AiProfile(
+        id: existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        name: name,
+        baseUrl: baseUrl,
+        model: model,
+        apiKey: _keyController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: palette.accent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              widget.title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: palette.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: '配置名称',
+                hintText: '例如：DeepSeek、OpenAI',
+                isDense: true,
+                prefixIcon: Icon(Icons.label_outline),
+              ),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: _baseUrlController,
               decoration: const InputDecoration(
                 labelText: '服务地址',
                 hintText: AiConfig.defaultBaseUrl,
                 isDense: true,
+                prefixIcon: Icon(Icons.link),
               ),
             ),
             const SizedBox(height: 10),
@@ -618,6 +897,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                 labelText: '模型',
                 hintText: AiConfig.defaultModel,
                 isDense: true,
+                prefixIcon: Icon(Icons.memory),
               ),
             ),
             const SizedBox(height: 10),
@@ -628,6 +908,7 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                 labelText: 'API Key',
                 hintText: '在服务商控制台创建',
                 isDense: true,
+                prefixIcon: const Icon(Icons.key_outlined),
                 suffixIcon: IconButton(
                   onPressed: () => setState(() => _obscure = !_obscure),
                   icon: Icon(
@@ -638,36 +919,21 @@ class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Text(
-              'Key 通过加密存储保存在本机；只有你输入的文本会发送给所选服务商。',
+              'Key 通过加密存储保存在本机；可以添加多个配置并在 AI 页一键切换。',
               style: TextStyle(fontSize: 11, color: palette.textSecondary),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _testing ? null : _test,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.wifi_tethering, size: 18),
-                    label: Text(_testing ? '测试中…' : '测试连接'),
-                  ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _save,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('保存'),
-                  ),
-                ),
-              ],
+                child: const Text('保存配置'),
+              ),
             ),
           ],
         ),

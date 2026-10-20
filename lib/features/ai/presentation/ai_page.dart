@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/ai/ai_client.dart';
+import '../../../core/ai/ai_config.dart';
 import '../application/ai_providers.dart';
 import '../application/ai_service.dart';
 import '../data/task_draft.dart';
@@ -75,6 +76,105 @@ class _AiPageState extends ConsumerState<AiPage> {
     setState(() {});
   }
 
+  /// 当前 AI 配置（点击一键切换）
+  Widget _profileChip(MorandiPalette palette, AiConfig config) {
+    final active = config.active;
+    return ActionChip(
+      avatar: Icon(Icons.hub_outlined, size: 16, color: palette.primaryDark),
+      label: Text(
+        config.profiles.length > 1
+            ? '${active?.name ?? '未配置'} · 点击切换'
+            : (active?.name ?? '未配置'),
+        style: const TextStyle(fontSize: 11),
+      ),
+      backgroundColor: palette.card,
+      side: BorderSide(color: palette.outline),
+      onPressed: () => _switchProfile(config),
+    );
+  }
+
+  Future<void> _switchProfile(AiConfig config) async {
+    if (config.profiles.length <= 1) {
+      // 只有一套配置：直接去设置里管理
+      if (mounted) context.push('/settings');
+      return;
+    }
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: palette.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                '切换 AI 配置',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: palette.textPrimary,
+                ),
+              ),
+            ),
+            for (final p in config.profiles)
+              ListTile(
+                leading: Icon(
+                  p.id == config.activeId
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: p.id == config.activeId
+                      ? palette.primaryDark
+                      : palette.outline,
+                  size: 22,
+                ),
+                title: Text(p.name),
+                subtitle: Text(
+                  p.model,
+                  style: TextStyle(fontSize: 11, color: palette.textSecondary),
+                ),
+                trailing: p.id == config.activeId
+                    ? Text(
+                        '使用中',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: palette.primaryDark,
+                        ),
+                      )
+                    : null,
+                onTap: () => Navigator.of(ctx).pop(p.id),
+              ),
+            ListTile(
+              leading: Icon(
+                Icons.settings_outlined,
+                color: palette.primaryDark,
+              ),
+              title: const Text('管理配置'),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                if (mounted) context.push('/settings');
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == config.activeId || !mounted) return;
+    await config.copyWith(activeId: picked).save();
+    ref.invalidate(aiConfigProvider);
+    if (!mounted) return;
+    setState(() {});
+    final name = config.profiles.firstWhere((p) => p.id == picked).name;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('已切换到 $name')));
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
@@ -97,6 +197,9 @@ class _AiPageState extends ConsumerState<AiPage> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             Center(child: AiMascot(mood: _mood, size: 130)),
+            const SizedBox(height: 6),
+            if (config != null && config.profiles.isNotEmpty)
+              Center(child: _profileChip(palette, config)),
             const SizedBox(height: 8),
             Card(
               child: Padding(

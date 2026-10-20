@@ -9,6 +9,7 @@ import '../../../core/db/database.dart';
 import '../../../core/utils/format.dart';
 import '../../today/application/task_service.dart';
 import '../../today/data/quadrants.dart';
+import '../data/added_summary.dart';
 import '../data/task_draft.dart';
 
 /// AI 任务草案列表（可编辑/删除/批量添加）——AI 页与笔记页共用。
@@ -47,9 +48,12 @@ class _AiDraftListState extends ConsumerState<AiDraftList> {
     if (_items.isEmpty || _adding) return;
     setState(() => _adding = true);
     final service = ref.read(taskServiceProvider);
-    final count = _items.length;
-    try {
-      for (final draft in _items) {
+    final now = DateTime.now();
+
+    final succeeded = <TaskDraft>[];
+    final failed = <TaskDraft>[];
+    for (final draft in _items) {
+      try {
         await service.create(
           TasksCompanion.insert(
             title: draft.title,
@@ -62,18 +66,38 @@ class _AiDraftListState extends ConsumerState<AiDraftList> {
           title: draft.title,
           startTime: draft.startDateTime,
         );
+        succeeded.add(draft);
+      } catch (_) {
+        // 单条失败不中断其余条目，保留在列表供重试
+        failed.add(draft);
       }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('已添加 $count 个任务')));
+    }
+
+    if (!mounted) return;
+    setState(() {
+      // 只保留失败条目，方便用户重试；全部成功则清空
+      _items = failed;
+      _adding = false;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (succeeded.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('添加失败，请稍后重试')));
+      return;
+    }
+
+    // 按日期统计：让用户明确任务被加到了哪一天（未来日期不在今日页显示）
+    final failedHint = failed.isEmpty ? '' : '，${failed.length} 个失败可重试';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('${summarizeAddedTasks(succeeded, now: now)}$failedHint'),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+
+    if (failed.isEmpty) {
       widget.onAdded?.call();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('添加失败：$e')));
-      }
-    } finally {
-      if (mounted) setState(() => _adding = false);
     }
   }
 

@@ -32,6 +32,8 @@ final taskServiceProvider = Provider<TaskService>((ref) => TaskService(ref));
 ///
 /// UI 层只调用本服务，不再直接读写数据库或调度通知，
 /// 保证任何入口（今日页、弹层、未来新增页面）走同一套业务规则。
+///
+/// 提醒只是增强能力：通知调度失败绝不影响任务本身的增删改/完成（数据优先）。
 class TaskService {
   TaskService(this._ref);
 
@@ -43,13 +45,13 @@ class TaskService {
   Future<TaskCompleteOutcome> toggle(TaskRow task) async {
     if (task.isDone) {
       await _db.uncompleteTaskById(task.id);
-      await ReminderCoordinator.syncTaskReminder(
+      await _safeSyncReminder(
         taskId: task.id,
         title: task.title,
         startTime: task.startTime,
       );
       _refreshStats();
-      await rescheduleEndOfDay(_db);
+      await _safeRescheduleEndOfDay();
       return const TaskCompleteOutcome(
         xp: 0,
         oldRank: 0,
@@ -58,9 +60,9 @@ class TaskService {
       );
     }
     final result = await _db.completeTaskAndAwardXp(task);
-    await ReminderCoordinator.cancelTaskReminder(task.id);
+    await _safeCancelReminder(task.id);
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
     return TaskCompleteOutcome(
       xp: result.xp,
       oldRank: result.oldRank,
@@ -72,13 +74,13 @@ class TaskService {
   /// 恢复已完成任务为未完成（点击已完成区 / 多选恢复）
   Future<void> uncomplete(TaskRow task) async {
     await _db.uncompleteTaskById(task.id);
-    await ReminderCoordinator.syncTaskReminder(
+    await _safeSyncReminder(
       taskId: task.id,
       title: task.title,
       startTime: task.startTime,
     );
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
   }
 
   /// 批量恢复（循环外只重建一次收尾提醒）
@@ -86,22 +88,22 @@ class TaskService {
     if (tasks.isEmpty) return;
     for (final task in tasks) {
       await _db.uncompleteTaskById(task.id);
-      await ReminderCoordinator.syncTaskReminder(
+      await _safeSyncReminder(
         taskId: task.id,
         title: task.title,
         startTime: task.startTime,
       );
     }
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
   }
 
   /// 软删除任务（左滑删除）
   Future<void> delete(TaskRow task) async {
     await _db.softDeleteTask(task.id);
-    await ReminderCoordinator.cancelTaskReminder(task.id);
+    await _safeCancelReminder(task.id);
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
   }
 
   /// 批量彻底删除（多选删除）
@@ -109,10 +111,10 @@ class TaskService {
     if (ids.isEmpty) return;
     await _db.hardDeleteTasks(ids);
     for (final id in ids) {
-      await ReminderCoordinator.cancelTaskReminder(id);
+      await _safeCancelReminder(id);
     }
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
   }
 
   /// 新建任务（含开始提醒、统计与收尾提醒刷新）
@@ -122,13 +124,9 @@ class TaskService {
     DateTime? startTime,
   }) async {
     final id = await _db.addTask(entry);
-    await ReminderCoordinator.syncTaskReminder(
-      taskId: id,
-      title: title,
-      startTime: startTime,
-    );
+    await _safeSyncReminder(taskId: id, title: title, startTime: startTime);
     _refreshStats();
-    await rescheduleEndOfDay(_db);
+    await _safeRescheduleEndOfDay();
     return id;
   }
 
@@ -140,12 +138,41 @@ class TaskService {
     DateTime? startTime,
   }) async {
     await _db.updateTask(id, entry);
-    await ReminderCoordinator.syncTaskReminder(
-      taskId: id,
-      title: title,
-      startTime: startTime,
-    );
+    await _safeSyncReminder(taskId: id, title: title, startTime: startTime);
   }
 
   void _refreshStats() => _ref.invalidate(statsSnapshotProvider);
+
+  /// 通知调度失败不影响任务数据（用户仍可正常添加/查看任务）
+  Future<void> _safeSyncReminder({
+    required int taskId,
+    required String title,
+    DateTime? startTime,
+  }) async {
+    try {
+      await ReminderCoordinator.syncTaskReminder(
+        taskId: taskId,
+        title: title,
+        startTime: startTime,
+      );
+    } catch (_) {
+      // 忽略：提醒失败不影响任务本身
+    }
+  }
+
+  Future<void> _safeCancelReminder(int taskId) async {
+    try {
+      await ReminderCoordinator.cancelTaskReminder(taskId);
+    } catch (_) {
+      // 忽略
+    }
+  }
+
+  Future<void> _safeRescheduleEndOfDay() async {
+    try {
+      await rescheduleEndOfDay(_db);
+    } catch (_) {
+      // 忽略：收尾提醒失败不影响任务操作
+    }
+  }
 }

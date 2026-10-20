@@ -32,7 +32,7 @@ class AiException implements Exception {
 /// 聊天补全接口（抽象，便于测试注入假实现）
 abstract class AiChat {
   Future<String> chatJson({
-    required AiConfig config,
+    required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
   });
@@ -50,13 +50,15 @@ class AiClient implements AiChat {
 
   @override
   Future<String> chatJson({
-    required AiConfig config,
+    required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
   }) async {
-    final uri = Uri.parse('${_normalizeBase(config.baseUrl)}/chat/completions');
+    final uri = Uri.parse(
+      '${_normalizeBase(profile.baseUrl)}/chat/completions',
+    );
     final body = jsonEncode({
-      'model': config.model,
+      'model': profile.model,
       'messages': [
         {'role': 'system', 'content': systemPrompt},
         {'role': 'user', 'content': userPrompt},
@@ -72,7 +74,7 @@ class AiClient implements AiChat {
             uri,
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer ${config.apiKey}',
+              'Authorization': 'Bearer ${profile.apiKey}',
             },
             body: body,
           )

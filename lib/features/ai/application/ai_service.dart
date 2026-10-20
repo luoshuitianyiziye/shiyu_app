@@ -64,12 +64,12 @@ class AiService {
   }
 
   Future<AiGenerateResult> _generateFrom(String userPrompt) async {
-    final config = await _requireConfig();
+    final profile = await _requireProfile();
     final now = DateTime.now();
     final content = await _ref
         .read(aiClientProvider)
         .chatJson(
-          config: config,
+          profile: profile,
           systemPrompt: buildSystemPrompt(now),
           userPrompt: userPrompt,
         );
@@ -79,12 +79,12 @@ class AiService {
   // ---------- 每日复盘建议（只发送聚合数字） ----------
 
   Future<String> reviewToday(StatsSnapshot stats) async {
-    final config = await _requireConfig();
+    final profile = await _requireProfile();
     final rate = (stats.todayRate * 100).round();
     final content = await _ref
         .read(aiClientProvider)
         .chatJson(
-          config: config,
+          profile: profile,
           systemPrompt: '你是时屿 App 的 AI 小助手「小屿」，语气温柔简短，只输出 JSON。',
           userPrompt:
               '今日完成率 $rate%，完成 ${stats.todayDone}/${stats.todayTotal} 项任务，'
@@ -105,11 +105,11 @@ class AiService {
     final truncated = text.length > maxInputLength
         ? text.substring(0, maxInputLength)
         : text;
-    final config = await _requireConfig();
+    final profile = await _requireProfile();
     final content = await _ref
         .read(aiClientProvider)
         .chatJson(
-          config: config,
+          profile: profile,
           systemPrompt: '你是时屿 App 的笔记助手，只输出 JSON。',
           userPrompt:
               '请为下面这篇笔记生成摘要（80 字以内）和 3-5 个标签（每个标签 2-6 字）。\n'
@@ -124,7 +124,7 @@ class AiService {
     if (tasks.isEmpty) {
       throw const AiException('今天还没有任务，先添加几个吧', kind: AiErrorKind.empty);
     }
-    final config = await _requireConfig();
+    final profile = await _requireProfile();
     final brief = tasks
         .take(20)
         .map((t) {
@@ -138,7 +138,7 @@ class AiService {
     final content = await _ref
         .read(aiClientProvider)
         .chatJson(
-          config: config,
+          profile: profile,
           systemPrompt: '你是时屿 App 的任务规划助手，只输出 JSON。',
           userPrompt:
               '以下是用户今天的一些任务：\n$brief\n\n'
@@ -295,15 +295,22 @@ class AiService {
     return text;
   }
 
-  Future<AiConfig> _requireConfig() async {
+  Future<AiProfile> _requireProfile() async {
     final config = await _ref.read(aiConfigProvider.future);
-    if (!config.isConfigured) {
+    final profile = config.active;
+    if (!config.enabled || profile == null) {
       throw const AiException(
-        '请先在设置中启用 AI 并填写 API Key',
+        '请先在设置中启用 AI 并添加一个配置',
         kind: AiErrorKind.notConfigured,
       );
     }
-    return config;
+    if (profile.apiKey.isEmpty) {
+      throw const AiException(
+        '当前 AI 配置缺少 API Key，请到设置里填写',
+        kind: AiErrorKind.notConfigured,
+      );
+    }
+    return profile;
   }
 
   /// 系统提示词（包含当前日期，帮助模型换算「今天/明天/下周三」）
