@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// 统计快照（专注 + 任务汇总），供「我的」页、统计页与成就页共用。
+/// 领域模型：core 层提供，features 只消费。
 class StatsSnapshot {
   const StatsSnapshot({
     required this.totalPomodoros,

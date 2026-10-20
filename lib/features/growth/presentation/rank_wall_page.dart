@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
-import '../data/ranks.dart';
+import '../../../core/domain/ranks.dart';
 
 /// 段位墙：9 张段位插画收集页（已解锁展示原图，未解锁显示剪影）
 class RankWallPage extends ConsumerWidget {

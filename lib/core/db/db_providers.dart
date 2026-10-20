@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/focus/data/custom_noise.dart';
-import '../../features/growth/data/stats.dart';
+import '../domain/stats.dart';
+import '../storage/custom_noise.dart';
 import 'database.dart';
 
 /// 数据库单例（测试中可 override 为内存库）

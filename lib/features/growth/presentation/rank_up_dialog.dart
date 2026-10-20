@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/morandi_theme.dart';
-import '../../growth/data/ranks.dart';
+import '../../../core/domain/ranks.dart';
 
 /// 晋段庆祝弹窗：展示新解锁的段位插画
 Future<void> showRankUpDialog(BuildContext context, RankInfo rank) {

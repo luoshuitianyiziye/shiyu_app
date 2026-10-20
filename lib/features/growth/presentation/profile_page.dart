@@ -7,7 +7,7 @@ import '../../../app/providers.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/utils/confirm_dialog.dart';
-import '../data/ranks.dart';
+import '../../../core/domain/ranks.dart';
 
 /// 个人资料页：头像（当前段位图）/ 昵称修改 / 成长信息 / 退出登录
 class ProfilePage extends ConsumerStatefulWidget {

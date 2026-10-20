@@ -6,9 +6,9 @@ import '../../../app/providers.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
+import '../../../core/domain/ranks.dart';
+import '../../../core/domain/stats.dart';
 import '../../settings/presentation/theme_picker_sheet.dart';
-import '../data/ranks.dart';
-import '../data/stats.dart';
 
 /// 「我的」页：昵称 / 等级经验 / 段位墙入口 / 设置与统计（开发中）
 class GrowthPage extends ConsumerWidget {

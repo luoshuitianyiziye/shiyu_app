@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
-import '../data/stats.dart';
+import '../../../core/domain/stats.dart';
 
 /// 成就页：8 项成就 + 解锁进度
 class AchievementsPage extends ConsumerWidget {

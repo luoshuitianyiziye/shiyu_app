@@ -11,7 +11,7 @@ import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/reminder_coordinator.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
-import '../../growth/data/ranks.dart';
+import '../../../core/domain/ranks.dart';
 import '../../growth/presentation/rank_up_dialog.dart';
 import '../data/quadrants.dart';
 import 'add_task_sheet.dart';

@@ -22,6 +22,8 @@ class CustomNoiseItem {
 /// 自定义白噪音的存取：SharedPreferences 只记录**文件名**（不记绝对路径，
 /// 避免 iOS 更新/重装、Android 换机恢复后文档目录路径变化导致清单全部失效），
 /// 文件复制到 <应用文档>/custom_noise/ 下，读取时用当前目录重新拼接绝对路径。
+///
+/// 存储服务放在 core/storage：不依赖任何业务模块（db_providers 等 core 层可直接使用）。
 class CustomNoiseStore {
   CustomNoiseStore._();
 

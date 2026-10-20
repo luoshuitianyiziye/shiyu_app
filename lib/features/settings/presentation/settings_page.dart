@@ -14,7 +14,7 @@ import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/notification_service.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
-import '../../focus/data/custom_noise.dart';
+import '../../../core/storage/custom_noise.dart';
 import '../../focus/data/white_noise.dart';
 
 /// 设置页：番茄钟参数 / 每日收尾提醒时间 / 默认白噪音

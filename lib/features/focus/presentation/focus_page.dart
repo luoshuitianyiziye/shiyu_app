@@ -9,8 +9,8 @@ import '../../../app/theme/morandi_theme.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/notifications/notification_service.dart';
-import '../../growth/data/ranks.dart';
-import '../data/custom_noise.dart';
+import '../../../core/domain/ranks.dart';
+import '../../../core/storage/custom_noise.dart';
 import '../data/white_noise.dart';
 
 /// 番茄钟：专注 / 短休 / 长休 循环 + 白噪音

@@ -17,7 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shiyu_app/core/backup/backup_service.dart';
 import 'package:shiyu_app/core/db/database.dart';
 import 'package:shiyu_app/core/utils/remind_calc.dart';
-import 'package:shiyu_app/features/growth/data/ranks.dart';
+import 'package:shiyu_app/core/domain/ranks.dart';
 import 'package:shiyu_app/features/notes/data/text_import.dart';
 
 void main() {
