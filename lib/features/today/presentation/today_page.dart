@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/empty_state.dart';
@@ -40,12 +41,28 @@ class TodayPage extends ConsumerWidget {
           '${today.month}月${today.day}日 · 周${_weekdayNames[today.weekday - 1]}',
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null, // 多页 FAB 共存（indexedStack），禁用 hero 动画避免标签冲突
-        onPressed: () => showAddTaskSheet(context),
-        backgroundColor: palette.primary,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // AI 助手：独立页面入口（Q 版形象 + 自然语言生成任务）
+          FloatingActionButton.small(
+            heroTag: 'ai',
+            onPressed: () => context.push('/ai'),
+            backgroundColor: palette.card,
+            foregroundColor: palette.primaryDark,
+            tooltip: 'AI 助手',
+            child: const Icon(Icons.auto_awesome),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton(
+            heroTag: null, // 多页 FAB 共存（indexedStack），禁用 hero 动画避免标签冲突
+            onPressed: () => showAddTaskSheet(context),
+            backgroundColor: palette.primary,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
       body: Column(
         children: [

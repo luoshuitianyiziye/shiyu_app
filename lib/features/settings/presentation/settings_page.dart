@@ -7,12 +7,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/morandi_theme.dart';
 import '../../../app/widgets/morandi_picker.dart';
 import '../../../app/widgets/morandi_time_picker.dart';
+import '../../../core/ai/ai_client.dart';
+import '../../../core/ai/ai_config.dart';
 import '../../../core/db/database.dart';
 import '../../../core/db/db_providers.dart';
 import '../../../core/feedback/feedback_debouncer.dart';
 import '../../../core/storage/custom_noise.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
+import '../../ai/application/ai_providers.dart';
 import '../../focus/data/white_noise.dart';
 import '../application/settings_service.dart';
 
@@ -161,6 +164,10 @@ class SettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
+
+            // ===== AI 助手 =====
+            const _GroupTitle('AI 助手'),
+            const _AiSettingsCard(),
 
             // ===== 数据备份 =====
             const _GroupTitle('数据备份'),
@@ -483,6 +490,185 @@ class _BackupCardState extends ConsumerState<_BackupCard> {
             onTap: _busy ? null : _restore,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// AI 助手设置卡片：启用开关 / 服务地址 / 模型 / API Key / 测试连接 / 保存
+class _AiSettingsCard extends ConsumerStatefulWidget {
+  const _AiSettingsCard();
+
+  @override
+  ConsumerState<_AiSettingsCard> createState() => _AiSettingsCardState();
+}
+
+class _AiSettingsCardState extends ConsumerState<_AiSettingsCard> {
+  final _baseUrlController = TextEditingController();
+  final _modelController = TextEditingController();
+  final _keyController = TextEditingController();
+  bool _enabled = false;
+  bool _obscure = true;
+  bool _saving = false;
+  bool _testing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final config = await ref.read(aiConfigProvider.future);
+    if (!mounted) return;
+    setState(() {
+      _enabled = config.enabled;
+      _baseUrlController.text = config.baseUrl;
+      _modelController.text = config.model;
+      _keyController.text = config.apiKey;
+    });
+  }
+
+  @override
+  void dispose() {
+    _baseUrlController.dispose();
+    _modelController.dispose();
+    _keyController.dispose();
+    super.dispose();
+  }
+
+  AiConfig _currentConfig() => AiConfig(
+        enabled: _enabled,
+        baseUrl: _baseUrlController.text.trim(),
+        model: _modelController.text.trim(),
+        apiKey: _keyController.text.trim(),
+      );
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await _currentConfig().save();
+      ref.invalidate(aiConfigProvider);
+      if (mounted) FeedbackDebouncer.toast(context, 'AI 设置已保存');
+    } catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, '保存失败：$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _test() async {
+    if (_testing) return;
+    final config = _currentConfig();
+    if (!config.isConfigured) {
+      FeedbackDebouncer.toast(context, '请先填写服务地址、模型与 API Key');
+      return;
+    }
+    setState(() => _testing = true);
+    try {
+      await ref.read(aiClientProvider).chatJson(
+            config: config,
+            systemPrompt: '你是测试助手，只回复 JSON：{"ok":true}',
+            userPrompt: '测试连接',
+          );
+      if (mounted) FeedbackDebouncer.toast(context, '连接成功，AI 配置可用');
+    } on AiException catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, '连接失败：${e.message}');
+    } catch (e) {
+      if (mounted) FeedbackDebouncer.toast(context, '连接失败：$e');
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('启用 AI 助手'),
+              subtitle: const Text('今日页「✨」按钮打开 AI 助手'),
+              value: _enabled,
+              activeTrackColor: palette.primary,
+              onChanged: (v) => setState(() => _enabled = v),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _baseUrlController,
+              decoration: const InputDecoration(
+                labelText: '服务地址',
+                hintText: AiConfig.defaultBaseUrl,
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _modelController,
+              decoration: const InputDecoration(
+                labelText: '模型',
+                hintText: AiConfig.defaultModel,
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _keyController,
+              obscureText: _obscure,
+              decoration: InputDecoration(
+                labelText: 'API Key',
+                hintText: '在服务商控制台创建',
+                isDense: true,
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                  icon: Icon(
+                    _obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Key 通过加密存储保存在本机；只有你输入的文本会发送给所选服务商。',
+              style: TextStyle(fontSize: 11, color: palette.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _testing ? null : _test,
+                    icon: _testing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.wifi_tethering, size: 18),
+                    label: Text(_testing ? '测试中…' : '测试连接'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _saving ? null : _save,
+                    icon: const Icon(Icons.save_outlined, size: 18),
+                    label: const Text('保存'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
