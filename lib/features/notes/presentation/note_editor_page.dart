@@ -52,6 +52,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
   bool _saving = false;
   bool _showMoreTools = false; // 工具栏第二行（更多格式）是否展开
   int? _categoryId; // 当前笔记分类
+  int? _savedNoteId; // 新建笔记首次保存后的 id（再次保存走更新，避免重复创建）
   Map<String, String> _captions = {}; // 图片路径 → 小字说明
 
   /// 浏览模式：已有笔记默认只读预览，点击正文/标题后才进入编辑。
@@ -800,13 +801,14 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     }
   }
 
-  Future<void> _save() async {
-    if (_saving) return;
+  /// 保存笔记到数据库（不离开页面），成功返回 true。
+  /// 新建笔记首次保存后记录 id，再次保存走更新（避免重复创建）。
+  Future<bool> _saveNote() async {
+    if (_saving) return false;
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('给笔记起个标题吧')));
-      return;
+      _showToast('给笔记起个标题吧');
+      return false;
     }
     setState(() => _saving = true);
 
@@ -816,8 +818,8 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
       final captionsJson = jsonEncode(_captions);
       final service = ref.read(noteServiceProvider);
 
-      if (_isNew) {
-        await service.create(
+      if (_savedNoteId == null && _isNew) {
+        _savedNoteId = await service.create(
           NotesCompanion.insert(
             title: title,
             body: Value(bodyJson),
@@ -828,7 +830,7 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
         );
       } else {
         await service.update(
-          widget.existing!.id,
+          _savedNoteId ?? widget.existing!.id,
           NotesCompanion(
             title: Value(title),
             body: Value(bodyJson),
@@ -839,19 +841,21 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
           ),
         );
       }
-
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+      return true;
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('保存失败：$e')));
-      }
+      if (mounted) _showToast('保存失败：$e');
+      return false;
     } finally {
-      // 无论成功失败都复位，避免保存按钮永久卡死
+      // 无论成功失败都复位，避免按钮永久卡死
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// 右上角「完成」：保存笔记并回到浏览模式（不离开页面）
+  Future<void> _finish() async {
+    final ok = await _saveNote();
+    if (!ok || !mounted) return;
+    _exitEditMode();
   }
 
   // ---------- 工具栏 ----------
@@ -1301,12 +1305,11 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
                       PopupMenuItem(value: 'summary', child: Text('生成摘要')),
                     ],
                   ),
-                // 编辑态：完成（回到浏览）+ 保存（落库并返回列表）
+                // 编辑态：完成（保存并回到浏览模式，不离开页面）
                 if (!_browsing) ...[
-                  TextButton(onPressed: _exitEditMode, child: const Text('完成')),
                   TextButton(
-                    onPressed: _saving ? null : _save,
-                    child: const Text('保存'),
+                    onPressed: _saving ? null : _finish,
+                    child: const Text('完成'),
                   ),
                 ],
               ],
