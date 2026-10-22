@@ -3,13 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/morandi_theme.dart';
+import 'live2d/live2d_mascot.dart';
 
 /// 小屿（鲸鱼少女）情绪状态
 enum AiMascotMood { idle, thinking, happy, sad }
 
-/// Q 版 AI 形象：浮动 + 呼吸 + 点击互动 + 气泡台词
+/// Q 版 AI 形象：Live2D 风格（呼吸 / 眨眼 / 视线跟随 / 表情 / 点击互动）+ 气泡台词。
 ///
-/// 素材来自设计三视图（assets/ai/mascot_front.png，透明背景）。
+/// 素材：`assets/ai/live2d/`（body 底图 + 左右眼球层，从设计三视图拆分）。
+/// 对外 API 不变（mood / bubbleText / size / onTap），页面无需改动。
 class AiMascot extends StatefulWidget {
   const AiMascot({
     super.key,
@@ -30,9 +32,7 @@ class AiMascot extends StatefulWidget {
   State<AiMascot> createState() => _AiMascotState();
 }
 
-class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
-  late final AnimationController _idleController;
-  late final AnimationController _reactController;
+class _AiMascotState extends State<AiMascot> {
   late String _line;
   int _lineSeed = 0;
 
@@ -49,14 +49,6 @@ class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _idleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..repeat(reverse: true);
-    _reactController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 620),
-    );
     _line = _pickLine();
   }
 
@@ -65,18 +57,7 @@ class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.mood != widget.mood) {
       _line = _pickLine();
-      if (widget.mood == AiMascotMood.happy ||
-          widget.mood == AiMascotMood.sad) {
-        _reactController.forward(from: 0);
-      }
     }
-  }
-
-  @override
-  void dispose() {
-    _idleController.dispose();
-    _reactController.dispose();
-    super.dispose();
   }
 
   String _pickLine() {
@@ -93,9 +74,19 @@ class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
 
   void _onTap() {
     setState(() => _line = _pickLine());
-    _reactController.forward(from: 0);
     widget.onTap?.call();
   }
+
+  void _onLongPress() {
+    setState(() => _line = '诶…别戳啦～');
+  }
+
+  Live2DMood get _live2dMood => switch (widget.mood) {
+    AiMascotMood.thinking => Live2DMood.thinking,
+    AiMascotMood.happy => Live2DMood.happy,
+    AiMascotMood.sad => Live2DMood.sad,
+    AiMascotMood.idle => Live2DMood.idle,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -108,48 +99,11 @@ class _AiMascotState extends State<AiMascot> with TickerProviderStateMixin {
         if (shownText.isNotEmpty)
           _SpeechBubble(text: shownText, palette: palette),
         const SizedBox(height: 4),
-        GestureDetector(
+        Live2DMascot(
+          mood: _live2dMood,
+          size: widget.size,
           onTap: _onTap,
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_idleController, _reactController]),
-            builder: (context, _) {
-              final idle = _idleController.value;
-              final wave = math.sin(idle * math.pi * 2);
-              final t = _reactController.value;
-              var dy = wave * (widget.mood == AiMascotMood.thinking ? 5 : 4);
-              var dx = 0.0;
-              var scale = 1 + 0.012 * wave;
-              var angle = 0.0;
-
-              if (widget.mood == AiMascotMood.thinking) {
-                angle = math.sin(idle * math.pi * 4) * 0.025;
-              }
-              if (widget.mood == AiMascotMood.happy &&
-                  _reactController.isAnimating) {
-                scale = 1 + 0.13 * math.sin(t * math.pi);
-                dy -= 10 * math.sin(t * math.pi);
-              }
-              if (widget.mood == AiMascotMood.sad &&
-                  _reactController.isAnimating) {
-                dx = math.sin(t * math.pi * 8) * 4 * (1 - t);
-              }
-
-              return Transform.translate(
-                offset: Offset(dx, dy),
-                child: Transform.rotate(
-                  angle: angle,
-                  child: Transform.scale(
-                    scale: scale,
-                    child: Image.asset(
-                      'assets/ai/mascot_front.png',
-                      width: widget.size,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+          onLongPress: _onLongPress,
         ),
       ],
     );
