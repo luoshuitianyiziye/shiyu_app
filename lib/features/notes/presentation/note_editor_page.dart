@@ -1199,21 +1199,23 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
     return '未分类';
   }
 
-  /// 分类：莫兰迪小窗选择（与任务重复规则一致）
+  /// 分类：莫兰迪小窗选择（与任务重复规则一致）。
+  /// 已有笔记在选择后**立即保存分类**（不需要再点「完成」）；
+  /// 选「未分类」用 -1 作为占位值，与「取消(null)」区分。
   Future<void> _pickCategory(List<NoteCategoryRow> cats) async {
-    final picked = await showMorandiPicker<int?>(
+    final picked = await showMorandiPicker<int>(
       context: context,
       title: '笔记分类',
       titleIcon: Icons.folder_outlined,
-      selected: _categoryId,
+      selected: _categoryId ?? -1,
       items: [
-        const PickerItem<int?>(
-          value: null,
+        const PickerItem<int>(
+          value: -1,
           label: '未分类',
           icon: Icons.folder_off_outlined,
         ),
         for (final c in cats)
-          PickerItem<int?>(
+          PickerItem<int>(
             value: c.id,
             label: c.name,
             icon: Icons.folder,
@@ -1221,7 +1223,26 @@ class _NoteEditorPageState extends ConsumerState<NoteEditorPage>
           ),
       ],
     );
-    if (picked != null && mounted) setState(() => _categoryId = picked);
+    if (picked == null || !mounted) return;
+
+    final newCategory = picked == -1 ? null : picked;
+    setState(() => _categoryId = newCategory);
+
+    // 已有笔记：选择分类即落库（阅读视图/编辑态都生效）
+    final noteId = _savedNoteId ?? widget.existing?.id;
+    if (noteId == null) return;
+    try {
+      await ref
+          .read(noteServiceProvider)
+          .update(noteId, NotesCompanion(categoryId: Value(newCategory)));
+      if (mounted) {
+        _showToast(
+          newCategory == null ? '已移出分类（未分类）' : '已移入「${_categoryLabel(cats)}」',
+        );
+      }
+    } catch (e) {
+      if (mounted) _showToast('分类保存失败：$e');
+    }
   }
 
   Widget _buildCategoryBar() {
