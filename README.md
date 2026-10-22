@@ -103,3 +103,17 @@ flutter test       # 单元测试 + 核心链路测试（12 项）
 ---
 
 **「时屿」** —— 把每一天过成一座岛，慢慢长出想要的自己。
+
+## 🐳 AI 形象来源与许可
+
+AI 助手「小屿」的形象（蓝发鲸鱼女仆）来自开源项目 **Coopanion**（AGPL-3.0-or-later）的 whale 形象包：
+
+- 渲染器 `rig.js` / `body.js` / `figure.js` 以 **AGPL-3.0-or-later** 授权；
+  本项目将其内联合并、精简为单文件页面 `assets/ai/whale/index.html`（IIFE 隔离作用域、
+  模型与贴图内嵌 base64），修改后的合并代码同样以 AGPL-3.0-or-later 提供。
+- 角色贴图：原设「溟月」（上善无形），DeepSeek 女仆装二创参考 ZipZipPipe；
+  **贴图不在 Coopanion 的 AGPL 授权范围内**，围裙上的标志图形属于 DeepSeek、OpenAI、
+  Anthropic、Google、阿里云、月之暗面、MiniMax 等公司；公开分发前请自行确认角色原设与商标权利。
+- 详见 [`NOTICE.md`](NOTICE.md)。
+
+若你公开分发包含该形象的本项目，请遵守 AGPL-3.0-or-later，并以同一许可开源整个应用。

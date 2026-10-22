@@ -196,7 +196,7 @@ class _AiPageState extends ConsumerState<AiPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
-            Center(child: AiMascot(mood: _mood, size: 130)),
+            Center(child: AiMascot(mood: _mood)),
             const SizedBox(height: 6),
             if (config != null && config.profiles.isNotEmpty)
               Center(child: _profileChip(palette, config)),

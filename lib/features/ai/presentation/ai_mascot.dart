@@ -3,21 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/morandi_theme.dart';
-import 'live2d/live2d_mascot.dart';
+import 'whale/whale_pet_view.dart';
 
 /// 小屿（鲸鱼少女）情绪状态
 enum AiMascotMood { idle, thinking, happy, sad }
 
-/// Q 版 AI 形象：Live2D 风格（呼吸 / 眨眼 / 视线跟随 / 表情 / 点击互动）+ 气泡台词。
+/// Q 版 AI 形象：鲸鱼女仆 Live2D 渲染（WebView）+ 气泡台词。
 ///
-/// 素材：`assets/ai/live2d/`（body 底图 + 左右眼球层，从设计三视图拆分）。
-/// 对外 API 不变（mood / bubbleText / size / onTap），页面无需改动。
+/// 形象渲染器与贴图来自开源项目 Coopanion（AGPL-3.0-or-later）的 whale
+/// 形象包；页面为自包含单文件 `assets/ai/whale/index.html`。
+/// 对外 API 保持不变（mood / bubbleText / onTap）。
 class AiMascot extends StatefulWidget {
   const AiMascot({
     super.key,
     this.mood = AiMascotMood.idle,
     this.bubbleText,
-    this.size = 120,
+    this.height = 300,
     this.onTap,
   });
 
@@ -25,7 +26,9 @@ class AiMascot extends StatefulWidget {
 
   /// 自定义气泡文字；null 时按情绪随机台词
   final String? bubbleText;
-  final double size;
+
+  /// 形象显示高度（WebView 区域）
+  final double height;
   final VoidCallback? onTap;
 
   @override
@@ -72,20 +75,16 @@ class _AiMascotState extends State<AiMascot> {
     return pool[_lineSeed];
   }
 
-  void _onTap() {
+  void _onPoke() {
     setState(() => _line = _pickLine());
     widget.onTap?.call();
   }
 
-  void _onLongPress() {
-    setState(() => _line = '诶…别戳啦～');
-  }
-
-  Live2DMood get _live2dMood => switch (widget.mood) {
-    AiMascotMood.thinking => Live2DMood.thinking,
-    AiMascotMood.happy => Live2DMood.happy,
-    AiMascotMood.sad => Live2DMood.sad,
-    AiMascotMood.idle => Live2DMood.idle,
+  WhalePetMood get _whaleMood => switch (widget.mood) {
+    AiMascotMood.thinking => WhalePetMood.thinking,
+    AiMascotMood.happy => WhalePetMood.happy,
+    AiMascotMood.sad => WhalePetMood.sad,
+    AiMascotMood.idle => WhalePetMood.idle,
   };
 
   @override
@@ -99,12 +98,7 @@ class _AiMascotState extends State<AiMascot> {
         if (shownText.isNotEmpty)
           _SpeechBubble(text: shownText, palette: palette),
         const SizedBox(height: 4),
-        Live2DMascot(
-          mood: _live2dMood,
-          size: widget.size,
-          onTap: _onTap,
-          onLongPress: _onLongPress,
-        ),
+        WhalePetView(height: widget.height, mood: _whaleMood, onPoke: _onPoke),
       ],
     );
   }
@@ -123,7 +117,7 @@ class _SpeechBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          constraints: const BoxConstraints(maxWidth: 220),
+          constraints: const BoxConstraints(maxWidth: 240),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: palette.card,
