@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -11,15 +13,23 @@ import 'package:webview_flutter/webview_flutter.dart';
 class WhalePetView extends StatefulWidget {
   const WhalePetView({
     super.key,
-    this.height = 300,
     this.mood = WhalePetMood.idle,
+    this.line,
+    this.fill = true,
+    this.height = 300,
     this.onPoke,
     this.onReady,
     this.onError,
   });
 
-  final double height;
   final WhalePetMood mood;
+
+  /// 要显示的台词（通过 WebView 内气泡显示；null = 不说）
+  final String? line;
+
+  /// true = 填满父级；false = 固定高度
+  final bool fill;
+  final double height;
   final VoidCallback? onPoke;
   final VoidCallback? onReady;
   final void Function(String error)? onError;
@@ -47,6 +57,7 @@ class _WhalePetViewState extends State<WhalePetView> {
           if (text.contains('"ready"')) {
             _ready = true;
             _applyMood();
+            _say(widget.line);
             widget.onReady?.call();
           } else if (text.contains('"poke"')) {
             widget.onPoke?.call();
@@ -64,6 +75,9 @@ class _WhalePetViewState extends State<WhalePetView> {
     if (oldWidget.mood != widget.mood) {
       _applyMood();
     }
+    if (oldWidget.line != widget.line) {
+      _say(widget.line);
+    }
   }
 
   Future<void> _call(String js) async {
@@ -76,30 +90,28 @@ class _WhalePetViewState extends State<WhalePetView> {
   }
 
   void _applyMood() {
-    switch (widget.mood) {
-      case WhalePetMood.thinking:
-        _call('window.petApi && window.petApi.setThinking(true)');
-      case WhalePetMood.happy:
-        _call('window.petApi && window.petApi.setThinking(false)');
-        _call("window.petApi && window.petApi.setExpr('happy', 2.5)");
-      case WhalePetMood.sad:
-        _call('window.petApi && window.petApi.setThinking(false)');
-        _call("window.petApi && window.petApi.setExpr('sad', 2.5)");
-      case WhalePetMood.idle:
-        _call('window.petApi && window.petApi.setThinking(false)');
-    }
+    final mood = switch (widget.mood) {
+      WhalePetMood.thinking => 'thinking',
+      WhalePetMood.happy => 'happy',
+      WhalePetMood.sad => 'sad',
+      WhalePetMood.idle => 'idle',
+    };
+    _call("window.petApi && window.petApi.setMood('$mood')");
   }
 
-  /// 供父组件调用：说出一个动作/表情（如 'surprised'）
-  Future<void> poke() =>
-      _call("window.petApi && window.petApi.setExpr('surprised', 1.2)");
+  void _say(String? text) {
+    if (text == null) return;
+    _call('window.petApi && window.petApi.say(${jsonEncode(text)})');
+  }
+
+  /// 触发一个动作词（如 'jump' / 'nod'）
+  Future<void> doWord(String id) =>
+      _call("window.petApi && window.petApi.doWord('$id')");
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: widget.height,
-      width: double.infinity,
-      child: WebViewWidget(controller: _controller),
-    );
+    final web = WebViewWidget(controller: _controller);
+    if (widget.fill) return web;
+    return SizedBox(height: widget.height, width: double.infinity, child: web);
   }
 }

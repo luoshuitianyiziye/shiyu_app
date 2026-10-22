@@ -8,17 +8,16 @@ import 'whale/whale_pet_view.dart';
 /// 小屿（鲸鱼少女）情绪状态
 enum AiMascotMood { idle, thinking, happy, sad }
 
-/// Q 版 AI 形象：鲸鱼女仆 Live2D 渲染（WebView）+ 气泡台词。
+/// AI 形象舞台：鲸鱼女仆 Live2D 渲染（WebView）+ 顶部气泡台词。
 ///
 /// 形象渲染器与贴图来自开源项目 Coopanion（AGPL-3.0-or-later）的 whale
 /// 形象包；页面为自包含单文件 `assets/ai/whale/index.html`。
-/// 对外 API 保持不变（mood / bubbleText / onTap）。
+/// 对外 API 保持不变（mood / bubbleText / onTap），尺寸由父级舞台决定。
 class AiMascot extends StatefulWidget {
   const AiMascot({
     super.key,
     this.mood = AiMascotMood.idle,
     this.bubbleText,
-    this.height = 300,
     this.onTap,
   });
 
@@ -26,9 +25,6 @@ class AiMascot extends StatefulWidget {
 
   /// 自定义气泡文字；null 时按情绪随机台词
   final String? bubbleText;
-
-  /// 形象显示高度（WebView 区域）
-  final double height;
   final VoidCallback? onTap;
 
   @override
@@ -92,13 +88,20 @@ class _AiMascotState extends State<AiMascot> {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final shownText = widget.bubbleText ?? _line;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        if (shownText.isNotEmpty)
-          _SpeechBubble(text: shownText, palette: palette),
-        const SizedBox(height: 4),
-        WhalePetView(height: widget.height, mood: _whaleMood, onPoke: _onPoke),
+        // Live2D 形象（WebView 舞台，透明背景）
+        WhalePetView(mood: _whaleMood, line: shownText, onPoke: _onPoke),
+        // 台词气泡（Flutter 层，浮在舞台顶部，指向形象）
+        Positioned(
+          top: 6,
+          left: 12,
+          right: 12,
+          child: Center(
+            child: _SpeechBubble(text: shownText, palette: palette),
+          ),
+        ),
       ],
     );
   }
@@ -117,24 +120,24 @@ class _SpeechBubble extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          constraints: const BoxConstraints(maxWidth: 240),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          constraints: const BoxConstraints(maxWidth: 260),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
             color: palette.card,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: palette.outline),
             boxShadow: [
               BoxShadow(
-                color: palette.primaryDark.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: palette.primaryDark.withValues(alpha: 0.10),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: palette.textPrimary),
+            style: TextStyle(fontSize: 13, color: palette.textPrimary),
           ),
         ),
         CustomPaint(
