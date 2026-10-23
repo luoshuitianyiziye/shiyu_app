@@ -13,6 +13,11 @@
         android:name="${applicationName}"
         android:enableOnBackInvokedCallback="true"
         android:icon="@mipmap/ic_launcher">
+        <!-- AI 形象使用 WebView(WebGL) 渲染：Impeller 与 PlatformView 合成在部分机型上
+             会导致 WebGL 画面不刷新，禁用 Impeller 走 Skia 渲染。 -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

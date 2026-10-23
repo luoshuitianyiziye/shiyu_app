@@ -2146,7 +2146,7 @@ try {
     { petG: petG, shadowEl: shadowEl, fxG: fxG },
     {
       figure: figure,
-      roam: 'off',
+      roam: 'free',
       enter: 'drop',
       startX: 0.5,
       bounds: () => {
@@ -2156,7 +2156,7 @@ try {
           W: r.width,
           H: H,
           floorY: H - 6,
-          // 形象逻辑高度约 256：占 WebView 高度约 85%（窗口由 Flutter 控制大小）
+          // 形象逻辑高度约 256：占活动窗口高度约 85%（窗口大小由 Flutter 控制）
           S: (H * 0.85 / 256) * scaleK,
         };
       },
@@ -2170,10 +2170,18 @@ try {
     if (!ctl) return;
     const dt = lastTick ? Math.min(0.05, (now - lastTick) / 1000) : 0.016;
     lastTick = now;
-    try { ctl.step(dt); ctl.render(); } catch (_) {}
+    try {
+      ctl.step(dt);
+      ctl.render();
+    } catch (_) {
+      // 单帧渲染异常不中断循环
+    }
     tickBubble(now);
   }
-  function rafLoop(now) { drive(now); requestAnimationFrame(rafLoop); }
+  function rafLoop(now) {
+    drive(now);
+    requestAnimationFrame(rafLoop);
+  }
   requestAnimationFrame(rafLoop);
   setInterval(() => {
     const now = performance.now();

@@ -150,10 +150,14 @@ class AiService {
 
   // ---------- 问答聊天（普通文本，非 JSON） ----------
 
-  /// 与小屿聊天：普通文本回复，支持最近几轮对话历史
+  /// 与小屿聊天：普通文本回复，支持最近几轮对话历史。
+  ///
+  /// 网络/服务端错误会自动重试（默认 2 次，退避 0.8s/1.6s）；
+  /// Key 无效、未配置、空回复不重试。
   Future<String> chat({
     required String message,
     List<Map<String, String>> history = const [],
+    int retries = 2,
   }) async {
     final text = message.trim();
     if (text.isEmpty) {
@@ -161,16 +165,29 @@ class AiService {
     }
     final profile = await _requireProfile();
     final now = DateTime.now();
-    final content = await _ref
-        .read(aiClientProvider)
-        .chatJson(
+    final client = _ref.read(aiClientProvider);
+    AiException? lastError;
+    for (var attempt = 0; attempt <= retries; attempt++) {
+      try {
+        final content = await client.chatJson(
           profile: profile,
           systemPrompt: buildChatSystemPrompt(now),
           userPrompt: text,
           history: history,
           jsonMode: false,
         );
-    return content.trim();
+        return content.trim();
+      } on AiException catch (e) {
+        lastError = e;
+        final retriable =
+            e.kind != AiErrorKind.auth &&
+            e.kind != AiErrorKind.notConfigured &&
+            e.kind != AiErrorKind.empty;
+        if (!retriable || attempt == retries) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 800 * (attempt + 1)));
+      }
+    }
+    throw lastError ?? const AiException('请求失败，请重试', kind: AiErrorKind.network);
   }
 
   /// 聊天系统提示词（小屿人设）
