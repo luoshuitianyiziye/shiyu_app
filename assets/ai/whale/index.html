@@ -2156,7 +2156,8 @@ try {
           W: r.width,
           H: H,
           floorY: H - 10,
-          S: Math.min(4.5, H / 230) * scaleK,
+          // 形象逻辑高度约 256；按舞台高度的比例计算，屏幕无关
+          S: (H * 0.30 / 256) * scaleK,
         };
       },
     },
@@ -2201,6 +2202,8 @@ stageEl.addEventListener('pointermove', (e) => {
 stageEl.addEventListener('pointerup', () => {
   if (!ctl) return;
   try { ctl.pointerUp(); } catch (_) {}
+  // 点击后有概率触发一个小动作，让反应更灵动
+  if (Math.random() < 0.6) setTimeout(randomAction, 120);
   post('poke');
 });
 stageEl.addEventListener('pointerleave', () => {
@@ -2233,9 +2236,18 @@ function setRoam(on) {
   try { ctl.setRoam(on ? 'free' : 'off'); } catch (_) {}
 }
 
+// 随机小动作（让待机更灵动，可被 Flutter 定时调用）
+function randomAction() {
+  if (!ctl) return;
+  try {
+    const words = ['jump', 'hop', 'nod', 'shake', 'spin', 'look', 'sit', 'sleep'];
+    ctl.doWord(words[Math.floor(Math.random() * words.length)]);
+  } catch (_) {}
+}
+
 function setScale(k) {
   const v = Number(k);
-  scaleK = Number.isFinite(v) ? Math.max(0.4, Math.min(2.0, v)) : 1.0;
+  scaleK = Number.isFinite(v) ? Math.max(0.3, Math.min(1.6, v)) : 1.0;
   try { ctl && ctl.resize(); } catch (_) {}
 }
 
@@ -2255,6 +2267,7 @@ window.petApi = {
   setRoam: setRoam,
   setScale: setScale,
   setScheme: setScheme,
+  randomAction: randomAction,
   poke: () => { try { ctl && ctl.setExpr('surprised', 1.2); } catch (_) {} },
   resize: () => { try { ctl && ctl.resize(); } catch (_) {} },
 };

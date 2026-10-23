@@ -50,8 +50,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
-  /// 把助手回答交给任务生成，弹出草案预览
-  Future<void> _toTask(String reply) async {
+  /// 把一段文字（助手回答 / 用户输入）交给任务生成，弹出草案预览
+  Future<void> _showDraftsFor(String text) async {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     showDialog<void>(
       context: context,
@@ -59,11 +59,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
     try {
-      final result = await ref.read(aiServiceProvider).generateTasks(reply);
+      final result = await ref.read(aiServiceProvider).generateTasks(text);
       if (!mounted) return;
       Navigator.of(context).pop(); // 关闭 loading
       if (result.drafts.isEmpty) {
-        _toast('没有从这段回答里识别到任务');
+        _toast('没有从这段内容里识别到任务');
         return;
       }
       await showModalBottomSheet<void>(
@@ -84,7 +84,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '从回答生成任务',
+                  '生成任务',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -112,6 +112,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         _toast('出错了：$e');
       }
     }
+  }
+
+  /// 用输入框里的文字直接生成任务
+  Future<void> _generateFromInput() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty) {
+      _toast('先在输入框里写一句想做的事');
+      return;
+    }
+    _controller.clear();
+    await _showDraftsFor(text);
   }
 
   @override
@@ -150,7 +161,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             palette: palette,
                             onToTask: turn.isUser
                                 ? null
-                                : () => _toTask(turn.text),
+                                : () => _showDraftsFor(turn.text),
                           );
                         }
                         return _TypingBubble(palette: palette);
@@ -235,6 +246,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ),
           ),
           const SizedBox(width: 8),
+          IconButton.outlined(
+            onPressed: loading ? null : _generateFromInput,
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            tooltip: '用这句话生成任务',
+            style: IconButton.styleFrom(
+              foregroundColor: palette.primaryDark,
+              side: BorderSide(color: palette.outline),
+            ),
+          ),
+          const SizedBox(width: 6),
           IconButton.filled(
             onPressed: loading ? null : _send,
             icon: loading

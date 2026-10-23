@@ -19,9 +19,10 @@ class AiMascot extends StatefulWidget {
     super.key,
     this.mood = AiMascotMood.idle,
     this.bubbleText,
-    this.scale = 1.0,
+    this.scale = 0.8,
     this.skin = 'deepseek',
     this.soundOn = true,
+    this.showBubble = true,
     this.onTap,
   });
 
@@ -38,6 +39,9 @@ class AiMascot extends StatefulWidget {
 
   /// 是否播放音效（小黄鸭等）
   final bool soundOn;
+
+  /// 是否显示顶部台词气泡
+  final bool showBubble;
   final VoidCallback? onTap;
 
   @override
@@ -114,14 +118,15 @@ class _AiMascotState extends State<AiMascot> {
           onPoke: _onPoke,
         ),
         // 台词气泡（Flutter 层，浮在舞台顶部，指向形象）
-        Positioned(
-          top: 6,
-          left: 12,
-          right: 12,
-          child: Center(
-            child: _SpeechBubble(text: shownText, palette: palette),
+        if (widget.showBubble)
+          Positioned(
+            top: 6,
+            left: 12,
+            right: 12,
+            child: Center(
+              child: _SpeechBubble(text: shownText, palette: palette),
+            ),
           ),
-        ),
       ],
     );
   }

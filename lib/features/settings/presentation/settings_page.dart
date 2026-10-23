@@ -1002,9 +1002,9 @@ class _AiMascotSettingsCard extends ConsumerWidget {
             ),
             Slider(
               value: settings.scale,
-              min: 0.6,
-              max: 1.5,
-              divisions: 18,
+              min: 0.4,
+              max: 1.2,
+              divisions: 16,
               activeColor: palette.primary,
               onChanged: notifier.previewScale,
               onChangeEnd: notifier.setScale,

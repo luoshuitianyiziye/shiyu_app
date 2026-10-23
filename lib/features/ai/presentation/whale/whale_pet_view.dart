@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -17,8 +19,9 @@ class WhalePetView extends StatefulWidget {
     this.line,
     this.fill = true,
     this.height = 300,
-    this.scale = 1.0,
+    this.scale = 0.8,
     this.skin = 'deepseek',
+    this.autoAction = true,
     this.onPoke,
     this.onReady,
     this.onError,
@@ -33,11 +36,14 @@ class WhalePetView extends StatefulWidget {
   final bool fill;
   final double height;
 
-  /// 形象大小系数（0.6 ~ 1.5）
+  /// 形象大小系数（0.4 ~ 1.2）
   final double scale;
 
   /// 皮肤 id：deepseek / harness / claude
   final String skin;
+
+  /// 是否定时随机做小动作（让待机更灵动）
+  final bool autoAction;
   final VoidCallback? onPoke;
   final VoidCallback? onReady;
   final void Function(String error)? onError;
@@ -50,6 +56,7 @@ enum WhalePetMood { idle, thinking, happy, sad }
 
 class _WhalePetViewState extends State<WhalePetView> {
   late final WebViewController _controller;
+  Timer? _autoActionTimer;
   bool _ready = false;
 
   @override
@@ -77,6 +84,7 @@ class _WhalePetViewState extends State<WhalePetView> {
         },
       )
       ..loadFlutterAsset('assets/ai/whale/index.html');
+    _scheduleAutoAction();
   }
 
   @override
@@ -94,6 +102,27 @@ class _WhalePetViewState extends State<WhalePetView> {
     if (oldWidget.skin != widget.skin) {
       _applySkin();
     }
+    if (oldWidget.autoAction != widget.autoAction) {
+      _autoActionTimer?.cancel();
+      _scheduleAutoAction();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoActionTimer?.cancel();
+    super.dispose();
+  }
+
+  /// 每 18~38 秒触发一次 kit 的随机小动作（待机灵动感）
+  void _scheduleAutoAction() {
+    if (!widget.autoAction) return;
+    final delay = 18 + math.Random().nextInt(20);
+    _autoActionTimer = Timer(Duration(seconds: delay), () {
+      if (!mounted) return;
+      if (_ready) _call('window.petApi && window.petApi.randomAction()');
+      _scheduleAutoAction();
+    });
   }
 
   Future<void> _call(String js) async {
@@ -116,7 +145,7 @@ class _WhalePetViewState extends State<WhalePetView> {
   }
 
   void _applyScale() {
-    final value = widget.scale.clamp(0.6, 1.5);
+    final value = widget.scale.clamp(0.4, 1.2);
     _call('window.petApi && window.petApi.setScale($value)');
   }
 
@@ -134,6 +163,10 @@ class _WhalePetViewState extends State<WhalePetView> {
   /// 触发一个动作词（如 'jump' / 'nod'）
   Future<void> doWord(String id) =>
       _call("window.petApi && window.petApi.doWord('$id')");
+
+  /// 触发一次随机小动作
+  Future<void> randomAction() =>
+      _call('window.petApi && window.petApi.randomAction()');
 
   @override
   Widget build(BuildContext context) {

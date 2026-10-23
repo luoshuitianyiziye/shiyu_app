@@ -4,12 +4,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// AI 形象设置（大小 / 皮肤 / 音效），持久化到 SharedPreferences。
 class AiMascotSettings {
   const AiMascotSettings({
-    this.scale = 1.0,
+    this.scale = 0.7,
     this.skin = 'deepseek',
     this.soundOn = true,
   });
 
-  /// 形象大小系数（0.6 ~ 1.5）
+  /// 形象大小系数（0.4 ~ 1.2）
   final double scale;
 
   /// 皮肤 id（见 [skins]）
@@ -32,13 +32,13 @@ class AiMascotSettings {
     );
   }
 
-  static const _kScale = 'ai_mascot_scale';
+  static const _kScale = 'ai_mascot_scale_v2';
   static const _kSkin = 'ai_mascot_skin';
   static const _kSound = 'ai_mascot_sound';
 
   static Future<AiMascotSettings> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final scale = (prefs.getDouble(_kScale) ?? 1.0).clamp(0.6, 1.5);
+    final scale = (prefs.getDouble(_kScale) ?? 0.7).clamp(0.4, 1.2);
     final skin = prefs.getString(_kSkin) ?? 'deepseek';
     return AiMascotSettings(
       scale: scale,
@@ -65,11 +65,11 @@ class AiMascotSettingsNotifier extends Notifier<AiMascotSettings> {
 
   /// 拖动滑块时实时预览（不落盘）
   void previewScale(double scale) {
-    state = state.copyWith(scale: scale.clamp(0.6, 1.5));
+    state = state.copyWith(scale: scale.clamp(0.4, 1.2));
   }
 
   Future<void> setScale(double scale) async {
-    state = state.copyWith(scale: scale.clamp(0.6, 1.5));
+    state = state.copyWith(scale: scale.clamp(0.4, 1.2));
     await state.save();
   }
 

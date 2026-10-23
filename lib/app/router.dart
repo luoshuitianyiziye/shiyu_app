@@ -26,7 +26,7 @@ class AppRouter {
         final loggedIn = nickname.value != null;
         final onLogin = state.matchedLocation == '/login';
         if (!loggedIn && !onLogin) return '/login';
-        if (loggedIn && onLogin) return '/ai';
+        if (loggedIn && onLogin) return '/today';
         return null;
       },
       routes: [
