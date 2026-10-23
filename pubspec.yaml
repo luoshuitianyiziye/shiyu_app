@@ -89,6 +89,8 @@ flutter:
     - assets/sounds/duck/
     - assets/sounds/agent/
     - assets/ai/whale/
+    - assets/pet/shenshen/
+    - assets/pet/shenshen/frames/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

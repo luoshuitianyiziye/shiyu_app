@@ -961,30 +961,13 @@ class _AiMascotSettingsCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '形象皮肤',
+              '形象',
               style: TextStyle(fontSize: 13, color: palette.textSecondary),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final entry in AiMascotSettings.skins.entries)
-                  ChoiceChip(
-                    label: Text(
-                      entry.value,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    selected: settings.skin == entry.key,
-                    onSelected: (_) => notifier.setSkin(entry.key),
-                    selectedColor: palette.accent,
-                    labelStyle: TextStyle(
-                      color: settings.skin == entry.key
-                          ? palette.primaryDark
-                          : palette.textSecondary,
-                    ),
-                  ),
-              ],
+            Text(
+              '森森 · 帧动画形象（素材与行为来自 dsh-pet）',
+              style: TextStyle(fontSize: 12, color: palette.textPrimary),
             ),
             const SizedBox(height: 14),
             Row(

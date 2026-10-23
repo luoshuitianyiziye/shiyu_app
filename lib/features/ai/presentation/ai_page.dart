@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,14 +6,13 @@ import '../../../app/theme/morandi_theme.dart';
 import '../application/ai_providers.dart';
 import '../data/ai_mascot_settings.dart';
 import '../data/mascot_sounds.dart';
-import 'whale/whale_pet_view.dart';
+import 'shenshen/shenshen_pet_view.dart';
 
-/// AI 助手页：底部活动窗口里的 Live2D 桌宠。
+/// AI 助手页：帧动画桌宠（素材与行为方案来自参考项目 dsh-pet）。
 ///
-/// - 形象初始居中（窗口底部中央）
-/// - 待机时自己在窗口内来回走动、随机小动作（kit 原生 roam + 动画链）
-/// - 按住拖动：被拎起（悬空表情），松手受重力下落、落地回弹（kit 原生物理）
-/// - 点击：摸头反应 + 小黄鸭音效
+/// - 待机时按概率决策：保持待机 / 转向 / 随机小动作 / 左右漫步
+/// - 点击：随机点击回应动画 + 小黄鸭音效
+/// - 按住拖动：被拎起（悬空动画），松手受重力下落、落地回弹
 /// - 生成任务与聊天在「问答」页完成（AppBar 右侧入口）
 class AiPage extends ConsumerStatefulWidget {
   const AiPage({super.key});
@@ -59,46 +56,28 @@ class _AiPageState extends ConsumerState<AiPage> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          // 活动窗口：宽度限制在 ~460*scale（保证 WebGL 渲染面积可控，真机流畅），
-          // 高度 ~620*scale；形象占窗口高度 85%，可在窗口内走动/拖拽落地。
-          final winH = 620 * mascot.scale;
-          final winW = math.min(
-            constraints.maxWidth,
-            math.max(240.0, 460 * mascot.scale),
-          );
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      palette.background,
-                      palette.accent.withValues(alpha: 0.22),
-                      palette.card,
-                    ],
-                  ),
-                ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  palette.background,
+                  palette.accent.withValues(alpha: 0.22),
+                  palette.card,
+                ],
               ),
-              Positioned(
-                left: (constraints.maxWidth - winW) / 2,
-                bottom: 0,
-                width: winW,
-                height: winH,
-                child: WhalePetView(
-                  scale: 1.0,
-                  skin: mascot.skin,
-                  autoAction: true,
-                  onPoke: _onPoke,
-                ),
-              ),
-            ],
-          );
-        },
+            ),
+          ),
+          ShenshenPetView(
+            scale: mascot.scale,
+            autoAction: true,
+            onTap: _onPoke,
+          ),
+        ],
       ),
     );
   }

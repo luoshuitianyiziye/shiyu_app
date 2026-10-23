@@ -1,0 +1,86 @@
+{
+ "idle": {
+  "frames": 8,
+  "fps": 4
+ },
+ "move_0": {
+  "frames": 7,
+  "fps": 6
+ },
+ "move_1": {
+  "frames": 7,
+  "fps": 6
+ },
+ "move_2": {
+  "frames": 7,
+  "fps": 6
+ },
+ "random_0": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_1": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_2": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_3": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_4": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_5": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_6": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_7": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_8": {
+  "frames": 6,
+  "fps": 5
+ },
+ "random_9": {
+  "frames": 6,
+  "fps": 5
+ },
+ "click_0": {
+  "frames": 7,
+  "fps": 6
+ },
+ "click_1": {
+  "frames": 7,
+  "fps": 6
+ },
+ "click_2": {
+  "frames": 7,
+  "fps": 6
+ },
+ "click_3": {
+  "frames": 7,
+  "fps": 6
+ },
+ "click_4": {
+  "frames": 7,
+  "fps": 6
+ },
+ "turn": {
+  "frames": 5,
+  "fps": 5
+ },
+ "drag": {
+  "frames": 7,
+  "fps": 6
+ }
+}
