@@ -32,13 +32,18 @@ class ShenshenPetView extends StatefulWidget {
 
 class _ShenshenPetViewState extends State<ShenshenPetView>
     with SingleTickerProviderStateMixin {
-  static const _frameW = 198.0;
-  static const _frameH = 235.0;
+  // 帧图原始尺寸（248x294，来自 640x360 视频的身体框裁剪）
+  static const _frameW = 248.0;
+  static const _frameH = 294.0;
 
   final Map<String, int> _frameCount = {};
   final Map<String, double> _clipFps = {};
   final math.Random _random = math.Random();
   bool _loaded = false;
+  int _randomCount = 0;
+  int _clickCount = 0;
+  int _moveCount = 0;
+  int _balanceCount = 0;
 
   // 当前动画
   String _clip = 'idle';
@@ -89,13 +94,26 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
         fps[entry.key] = (v['fps'] as num).toDouble();
       }
       if (!mounted) return;
+      int countOf(String prefix) =>
+          counts.keys.where((k) => k.startsWith(prefix)).length;
       setState(() {
         _frameCount.addAll(counts);
         _clipFps.addAll(fps);
+        _randomCount = countOf('random_');
+        _clickCount = countOf('click_');
+        _moveCount = countOf('move_');
+        _balanceCount = countOf('balance_');
         _loaded = true;
       });
-      // 预缓存帧，避免切换时闪烁
+      // 预缓存常用动作帧（其余按需加载，避免一次性占用过多内存）
       for (final clip in _frameCount.keys) {
+        if (!clip.startsWith('idle') &&
+            !clip.startsWith('click_') &&
+            !clip.startsWith('move_') &&
+            !clip.startsWith('drag') &&
+            !clip.startsWith('turn')) {
+          continue;
+        }
         for (var i = 0; i < _frameCount[clip]!; i++) {
           if (!mounted) return;
           await precacheImage(AssetImage(_path(clip, i)), context);
@@ -190,31 +208,39 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
     if (!widget.autoAction) return;
     if (_dragging || _clip != 'idle' || _t < _nextDecision) return;
     final r = _random.nextDouble();
-    if (r < 0.30) {
+    if (r < 0.28) {
       // 继续待机
       _nextDecision = _t + 2.5 + _random.nextDouble() * 2.5;
-    } else if (r < 0.42) {
+    } else if (r < 0.38) {
       // 转向
       _facing *= -1;
       _playOnce('turn');
       _nextDecision = _t + 1.4;
-    } else if (r < 0.82) {
-      // 随机小动作
-      _playOnce('random_${_random.nextInt(10)}');
+    } else if (r < 0.78 && _randomCount > 0) {
+      // 随机动作（全部收录）
+      _playOnce('random_${_random.nextInt(_randomCount)}');
       _nextDecision = _t + 2.0 + _random.nextDouble() * 1.5;
-    } else {
+    } else if (r < 0.84 && _balanceCount > 0) {
+      // 余额事件动作
+      _playOnce('balance_${_random.nextInt(_balanceCount)}');
+      _nextDecision = _t + 2.0 + _random.nextDouble() * 1.5;
+    } else if (_moveCount > 0) {
       // 漫步
       _facing = _random.nextBool() ? 1 : -1;
-      _play('move_${_random.nextInt(3)}');
+      _play('move_${_random.nextInt(_moveCount)}');
       final dur = 1.2 + _random.nextDouble() * 2.2;
       _moveUntil = _t + dur;
       _nextDecision = _t + dur + 0.4;
+    } else {
+      _nextDecision = _t + 3;
     }
   }
 
   void _onTap() {
     widget.onTap?.call();
-    _playOnce('click_${_random.nextInt(5)}');
+    if (_clickCount > 0) {
+      _playOnce('click_${_random.nextInt(_clickCount)}');
+    }
   }
 
   void _onPanStart(DragStartDetails details) {
@@ -244,7 +270,9 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
       builder: (context, constraints) {
         _areaW = constraints.maxWidth;
         _areaH = constraints.maxHeight;
-        _petH = constraints.maxHeight * 0.30 * widget.scale;
+        // 以原始帧分辨率（294）为基准按系数缩放：0.4~1.2 → 141~423px，
+        // 默认 0.7 ≈ 247px（接近点对点，清晰）；调大时仅轻微放大。
+        _petH = _frameH * widget.scale * 1.2;
         _petW = _petH * _frameW / _frameH;
         if (!_loaded) return const SizedBox.shrink();
 
@@ -275,6 +303,7 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
                   _path(_clip, _frame),
                   gaplessPlayback: true,
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
                 ),
               ),
             ),
