@@ -16,6 +16,7 @@ import '../../../core/storage/custom_noise.dart';
 import '../../../core/utils/confirm_dialog.dart';
 import '../../../core/utils/format.dart';
 import '../../ai/application/ai_providers.dart';
+import '../../ai/data/ai_mascot_settings.dart';
 import '../../focus/data/white_noise.dart';
 import '../application/settings_service.dart';
 
@@ -167,6 +168,7 @@ class SettingsPage extends ConsumerWidget {
 
             // ===== AI 助手 =====
             const _GroupTitle('AI 助手'),
+            const _AiMascotSettingsCard(),
             const _AiSettingsCard(),
 
             // ===== 数据备份 =====
@@ -934,6 +936,86 @@ class _AiProfileEditorSheetState extends State<_AiProfileEditorSheet> {
                 ),
                 child: const Text('保存配置'),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AI 形象设置卡片：皮肤 / 大小 / 音效
+class _AiMascotSettingsCard extends ConsumerWidget {
+  const _AiMascotSettingsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    final settings = ref.watch(aiMascotSettingsProvider);
+    final notifier = ref.read(aiMascotSettingsProvider.notifier);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '形象皮肤',
+              style: TextStyle(fontSize: 13, color: palette.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in AiMascotSettings.skins.entries)
+                  ChoiceChip(
+                    label: Text(
+                      entry.value,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    selected: settings.skin == entry.key,
+                    onSelected: (_) => notifier.setSkin(entry.key),
+                    selectedColor: palette.accent,
+                    labelStyle: TextStyle(
+                      color: settings.skin == entry.key
+                          ? palette.primaryDark
+                          : palette.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Text(
+                  '形象大小',
+                  style: TextStyle(fontSize: 13, color: palette.textSecondary),
+                ),
+                const Spacer(),
+                Text(
+                  '${settings.scale.toStringAsFixed(1)}x',
+                  style: TextStyle(fontSize: 12, color: palette.primaryDark),
+                ),
+              ],
+            ),
+            Slider(
+              value: settings.scale,
+              min: 0.6,
+              max: 1.5,
+              divisions: 18,
+              activeColor: palette.primary,
+              onChanged: notifier.previewScale,
+              onChangeEnd: notifier.setScale,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('音效'),
+              subtitle: const Text('点击形象时播放小黄鸭音效'),
+              value: settings.soundOn,
+              activeTrackColor: palette.primary,
+              onChanged: notifier.setSoundOn,
             ),
           ],
         ),

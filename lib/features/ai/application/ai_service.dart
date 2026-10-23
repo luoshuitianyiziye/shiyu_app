@@ -148,6 +148,42 @@ class AiService {
     return _extractText(content);
   }
 
+  // ---------- 问答聊天（普通文本，非 JSON） ----------
+
+  /// 与小屿聊天：普通文本回复，支持最近几轮对话历史
+  Future<String> chat({
+    required String message,
+    List<Map<String, String>> history = const [],
+  }) async {
+    final text = message.trim();
+    if (text.isEmpty) {
+      throw const AiException('说点什么吧～', kind: AiErrorKind.empty);
+    }
+    final profile = await _requireProfile();
+    final now = DateTime.now();
+    final content = await _ref
+        .read(aiClientProvider)
+        .chatJson(
+          profile: profile,
+          systemPrompt: buildChatSystemPrompt(now),
+          userPrompt: text,
+          history: history,
+          jsonMode: false,
+        );
+    return content.trim();
+  }
+
+  /// 聊天系统提示词（小屿人设）
+  static String buildChatSystemPrompt(DateTime now) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    final date = '${now.year}-${two(now.month)}-${two(now.day)}';
+    return '你是「时屿」App 里的 AI 伙伴「小屿」，一只有蓝色长发的鲸鱼女仆。\n'
+        '性格温柔、活泼、偶尔卖萌。用户会和你聊天，请用中文简洁回答（一般 1~3 句，最多 120 字）。\n'
+        '你可以陪用户聊天、给学习/工作建议；如果用户想建任务，可以提醒他用「让 AI 生成任务」。\n'
+        '当前日期：$date。\n'
+        '不要编造用户没提到的信息；不确定就说不确定。';
+  }
+
   // ---------- 解析与校验 ----------
 
   /// 解析模型输出的 JSON → 任务草案（严格校验，非法条目丢弃并计数）

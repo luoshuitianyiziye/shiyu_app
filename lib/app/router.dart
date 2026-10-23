@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/ai/presentation/ai_page.dart';
+import '../features/ai/presentation/chat_page.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/calendar/presentation/calendar_page.dart';
 import '../features/focus/presentation/focus_page.dart';
@@ -25,12 +26,13 @@ class AppRouter {
         final loggedIn = nickname.value != null;
         final onLogin = state.matchedLocation == '/login';
         if (!loggedIn && !onLogin) return '/login';
-        if (loggedIn && onLogin) return '/today';
+        if (loggedIn && onLogin) return '/ai';
         return null;
       },
       routes: [
         GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
         GoRoute(path: '/ai', builder: (_, _) => const AiPage()),
+        GoRoute(path: '/ai/chat', builder: (_, _) => const ChatPage()),
         GoRoute(path: '/rank-wall', builder: (_, _) => const RankWallPage()),
         GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
         GoRoute(path: '/stats', builder: (_, _) => const StatsPage()),

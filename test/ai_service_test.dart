@@ -17,16 +17,22 @@ class _FakeChat implements AiChat {
   AiProfile? lastProfile;
   String? lastSystem;
   String? lastUser;
+  List<Map<String, String>>? lastHistory;
+  bool? lastJsonMode;
 
   @override
   Future<String> chatJson({
     required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
+    List<Map<String, String>>? history,
+    bool jsonMode = true,
   }) async {
     lastProfile = profile;
     lastSystem = systemPrompt;
     lastUser = userPrompt;
+    lastHistory = history;
+    lastJsonMode = jsonMode;
     return response;
   }
 }
@@ -280,6 +286,48 @@ void main() {
       expect(result.drafts, hasLength(1));
       expect(fake.lastUser, contains('从下面这篇笔记中提取待办任务'));
       expect(fake.lastUser!.length, lessThan(3000)); // 已截断
+    });
+  });
+
+  group('问答聊天', () {
+    ProviderContainer makeContainer(AiChat fake) => ProviderContainer(
+      overrides: [
+        aiConfigProvider.overrideWith((ref) async => _configured()),
+        aiClientProvider.overrideWithValue(fake),
+      ],
+    );
+
+    test('chat 发送历史并返回文本（非 JSON 模式）', () async {
+      final fake = _FakeChat('今天也辛苦啦～');
+      final container = makeContainer(fake);
+      addTearDown(container.dispose);
+
+      final reply = await container
+          .read(aiServiceProvider)
+          .chat(
+            message: '陪我聊聊',
+            history: [
+              {'role': 'user', 'content': '你好'},
+              {'role': 'assistant', 'content': '你好呀～'},
+            ],
+          );
+      expect(reply, '今天也辛苦啦～');
+      expect(fake.lastUser, '陪我聊聊');
+      expect(fake.lastHistory, hasLength(2));
+      expect(fake.lastJsonMode, isFalse);
+      expect(fake.lastSystem, contains('小屿'));
+    });
+
+    test('空消息抛异常（不发请求）', () async {
+      final fake = _FakeChat('x');
+      final container = makeContainer(fake);
+      addTearDown(container.dispose);
+
+      await expectLater(
+        container.read(aiServiceProvider).chat(message: '   '),
+        throwsA(isA<AiException>()),
+      );
+      expect(fake.lastUser, isNull);
     });
   });
 }

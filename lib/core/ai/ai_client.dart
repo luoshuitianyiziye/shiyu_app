@@ -35,6 +35,8 @@ abstract class AiChat {
     required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
+    List<Map<String, String>>? history,
+    bool jsonMode = true,
   });
 }
 
@@ -53,6 +55,8 @@ class AiClient implements AiChat {
     required AiProfile profile,
     required String systemPrompt,
     required String userPrompt,
+    List<Map<String, String>>? history,
+    bool jsonMode = true,
   }) async {
     final uri = Uri.parse(
       '${_normalizeBase(profile.baseUrl)}/chat/completions',
@@ -61,11 +65,12 @@ class AiClient implements AiChat {
       'model': profile.model,
       'messages': [
         {'role': 'system', 'content': systemPrompt},
+        ...?history,
         {'role': 'user', 'content': userPrompt},
       ],
       'temperature': 0.2,
       'max_tokens': 1200,
-      'response_format': {'type': 'json_object'},
+      if (jsonMode) 'response_format': {'type': 'json_object'},
     });
 
     try {

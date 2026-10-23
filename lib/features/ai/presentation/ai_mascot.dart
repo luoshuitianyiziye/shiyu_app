@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../app/theme/morandi_theme.dart';
+import '../data/mascot_sounds.dart';
 import 'whale/whale_pet_view.dart';
 
 /// 小屿（鲸鱼少女）情绪状态
@@ -18,6 +19,9 @@ class AiMascot extends StatefulWidget {
     super.key,
     this.mood = AiMascotMood.idle,
     this.bubbleText,
+    this.scale = 1.0,
+    this.skin = 'deepseek',
+    this.soundOn = true,
     this.onTap,
   });
 
@@ -25,6 +29,15 @@ class AiMascot extends StatefulWidget {
 
   /// 自定义气泡文字；null 时按情绪随机台词
   final String? bubbleText;
+
+  /// 形象大小系数（0.6 ~ 1.5）
+  final double scale;
+
+  /// 皮肤 id（deepseek / harness / claude）
+  final String skin;
+
+  /// 是否播放音效（小黄鸭等）
+  final bool soundOn;
   final VoidCallback? onTap;
 
   @override
@@ -72,6 +85,7 @@ class _AiMascotState extends State<AiMascot> {
   }
 
   void _onPoke() {
+    if (widget.soundOn) MascotSounds.duck();
     setState(() => _line = _pickLine());
     widget.onTap?.call();
   }
@@ -92,7 +106,13 @@ class _AiMascotState extends State<AiMascot> {
       fit: StackFit.expand,
       children: [
         // Live2D 形象（WebView 舞台，透明背景）
-        WhalePetView(mood: _whaleMood, line: shownText, onPoke: _onPoke),
+        WhalePetView(
+          mood: _whaleMood,
+          line: shownText,
+          scale: widget.scale,
+          skin: widget.skin,
+          onPoke: _onPoke,
+        ),
         // 台词气泡（Flutter 层，浮在舞台顶部，指向形象）
         Positioned(
           top: 6,

@@ -17,6 +17,8 @@ class WhalePetView extends StatefulWidget {
     this.line,
     this.fill = true,
     this.height = 300,
+    this.scale = 1.0,
+    this.skin = 'deepseek',
     this.onPoke,
     this.onReady,
     this.onError,
@@ -30,6 +32,12 @@ class WhalePetView extends StatefulWidget {
   /// true = 填满父级；false = 固定高度
   final bool fill;
   final double height;
+
+  /// 形象大小系数（0.6 ~ 1.5）
+  final double scale;
+
+  /// 皮肤 id：deepseek / harness / claude
+  final String skin;
   final VoidCallback? onPoke;
   final VoidCallback? onReady;
   final void Function(String error)? onError;
@@ -56,6 +64,8 @@ class _WhalePetViewState extends State<WhalePetView> {
           final text = msg.message;
           if (text.contains('"ready"')) {
             _ready = true;
+            _applyScale();
+            _applySkin(initial: true);
             _applyMood();
             _say(widget.line);
             widget.onReady?.call();
@@ -78,6 +88,12 @@ class _WhalePetViewState extends State<WhalePetView> {
     if (oldWidget.line != widget.line) {
       _say(widget.line);
     }
+    if (oldWidget.scale != widget.scale) {
+      _applyScale();
+    }
+    if (oldWidget.skin != widget.skin) {
+      _applySkin();
+    }
   }
 
   Future<void> _call(String js) async {
@@ -97,6 +113,17 @@ class _WhalePetViewState extends State<WhalePetView> {
       WhalePetMood.idle => 'idle',
     };
     _call("window.petApi && window.petApi.setMood('$mood')");
+  }
+
+  void _applyScale() {
+    final value = widget.scale.clamp(0.6, 1.5);
+    _call('window.petApi && window.petApi.setScale($value)');
+  }
+
+  void _applySkin({bool initial = false}) {
+    final skin = widget.skin;
+    if (initial && skin == 'deepseek') return; // 默认皮肤已加载
+    _call("window.petApi && window.petApi.setScheme('$skin')");
   }
 
   void _say(String? text) {

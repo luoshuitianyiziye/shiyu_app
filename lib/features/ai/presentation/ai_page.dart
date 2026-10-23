@@ -9,6 +9,8 @@ import '../../../core/ai/ai_client.dart';
 import '../../../core/ai/ai_config.dart';
 import '../application/ai_providers.dart';
 import '../application/ai_service.dart';
+import '../data/ai_mascot_settings.dart';
+import '../data/mascot_sounds.dart';
 import '../data/task_draft.dart';
 import 'ai_draft_list.dart';
 import 'ai_mascot.dart';
@@ -49,6 +51,8 @@ class _AiPageState extends ConsumerState<AiPage> {
   Future<void> _generate() async {
     if (_loading) return;
     FocusScope.of(context).unfocus();
+    final soundOn = ref.read(aiMascotSettingsProvider).soundOn;
+    if (soundOn) MascotSounds.start();
     setState(() {
       _loading = true;
       _error = null;
@@ -59,6 +63,13 @@ class _AiPageState extends ConsumerState<AiPage> {
           .read(aiServiceProvider)
           .generateTasks(_inputController.text);
       if (!mounted) return;
+      if (soundOn) {
+        if (result.drafts.isEmpty) {
+          MascotSounds.error();
+        } else {
+          MascotSounds.done();
+        }
+      }
       setState(() {
         _drafts = result.drafts;
         _ignored = result.ignored;
@@ -69,12 +80,14 @@ class _AiPageState extends ConsumerState<AiPage> {
       });
     } on AiException catch (e) {
       if (!mounted) return;
+      if (soundOn) MascotSounds.error();
       setState(() {
         _error = e.message;
         _panelOpen = true;
       });
     } catch (e) {
       if (!mounted) return;
+      if (soundOn) MascotSounds.error();
       setState(() {
         _error = '出错了：$e';
         _panelOpen = true;
@@ -194,11 +207,17 @@ class _AiPageState extends ConsumerState<AiPage> {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
     final config = ref.watch(aiConfigProvider).value;
     final configured = config?.isConfigured ?? false;
+    final mascot = ref.watch(aiMascotSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI 助手'),
         actions: [
+          IconButton(
+            onPressed: () => context.push('/ai/chat'),
+            icon: const Icon(Icons.chat_bubble_outline),
+            tooltip: '问答',
+          ),
           IconButton(
             onPressed: () => context.push('/settings'),
             icon: const Icon(Icons.settings_outlined),
@@ -232,7 +251,12 @@ class _AiPageState extends ConsumerState<AiPage> {
                           ),
                         ),
                       ),
-                      AiMascot(mood: _mood),
+                      AiMascot(
+                        mood: _mood,
+                        scale: mascot.scale,
+                        skin: mascot.skin,
+                        soundOn: mascot.soundOn,
+                      ),
                     ],
                   ),
                 ),

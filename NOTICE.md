@@ -19,3 +19,11 @@
 
 - Flutter / Dart 生态依赖见 `pubspec.yaml` 与 `pubspec.lock`（各包自带许可）。
 - 字体、图标：Flutter 内置 Material Icons；无额外字体资产。
+
+## AI 形象音效
+
+- `assets/sounds/duck/Ya1.mp3`、`Ya2.mp3`（小黄鸭）：来自
+  [MeteorNOX/DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)，
+  MIT License（Copyright (c) 2025 MeteorNOX）。
+- `assets/sounds/click.wav`、`assets/sounds/agent/start|done|error.wav`：来自
+  dsh-pet-indesktop，MIT License（Copyright (c) 2026 Merzlin）。
