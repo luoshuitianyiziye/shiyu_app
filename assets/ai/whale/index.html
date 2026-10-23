@@ -2146,18 +2146,18 @@ try {
     { petG: petG, shadowEl: shadowEl, fxG: fxG },
     {
       figure: figure,
-      roam: 'free',
+      roam: 'off',
       enter: 'drop',
       startX: 0.5,
       bounds: () => {
         const r = stageEl.getBoundingClientRect();
-        const H = Math.max(120, r.height);
+        const H = Math.max(80, r.height);
         return {
           W: r.width,
           H: H,
-          floorY: H - 10,
-          // 形象逻辑高度约 256；按舞台高度的比例计算，屏幕无关
-          S: (H * 0.30 / 256) * scaleK,
+          floorY: H - 6,
+          // 形象逻辑高度约 256：占 WebView 高度约 85%（窗口由 Flutter 控制大小）
+          S: (H * 0.85 / 256) * scaleK,
         };
       },
     },
@@ -2226,6 +2226,11 @@ function setMood(mood) {
   } catch (_) {}
 }
 
+function setExpr(id, sec) {
+  if (!ctl || !id) return;
+  try { ctl.setExpr(String(id), sec || 1.5); } catch (_) {}
+}
+
 function doWord(id) {
   if (!ctl || !id) return;
   try { ctl.doWord(String(id)); } catch (_) {}
@@ -2263,6 +2268,7 @@ window.petApi = {
   ready: () => !!ctl,
   say: say,
   setMood: setMood,
+  setExpr: setExpr,
   doWord: doWord,
   setRoam: setRoam,
   setScale: setScale,

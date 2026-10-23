@@ -5,6 +5,26 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+/// 形象控制句柄（供 Flutter 层触发动作/表情）
+class WhalePetController extends ChangeNotifier {
+  _WhalePetViewState? _state;
+
+  void _attach(_WhalePetViewState state) => _state = state;
+
+  void _detach(_WhalePetViewState state) {
+    if (_state == state) _state = null;
+  }
+
+  Future<void> randomAction() async => _state?.randomAction();
+
+  Future<void> dragged(bool on) async => _state?.dragged(on);
+
+  Future<void> setExpr(String id, {double seconds = 1.5}) async =>
+      _state?.setExpr(id, seconds: seconds);
+
+  Future<void> doWord(String id) async => _state?.doWord(id);
+}
+
 /// 基于 WebView 的鲸鱼女仆 Live2D 形象（渲染器来自 Coopanion whale 形象包）。
 ///
 /// 页面（assets/ai/whale/index.html）是自包含单文件：贴图 base64 内嵌、
@@ -15,11 +35,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 class WhalePetView extends StatefulWidget {
   const WhalePetView({
     super.key,
+    this.controller,
     this.mood = WhalePetMood.idle,
     this.line,
     this.fill = true,
     this.height = 300,
-    this.scale = 0.8,
+    this.scale = 1.0,
     this.skin = 'deepseek',
     this.autoAction = true,
     this.onPoke,
@@ -27,6 +48,7 @@ class WhalePetView extends StatefulWidget {
     this.onError,
   });
 
+  final WhalePetController? controller;
   final WhalePetMood mood;
 
   /// 要显示的台词（通过 WebView 内气泡显示；null = 不说）
@@ -36,7 +58,7 @@ class WhalePetView extends StatefulWidget {
   final bool fill;
   final double height;
 
-  /// 形象大小系数（0.4 ~ 1.2）
+  /// 形象大小系数（窗口由父级控制时保持 1.0）
   final double scale;
 
   /// 皮肤 id：deepseek / harness / claude
@@ -62,6 +84,7 @@ class _WhalePetViewState extends State<WhalePetView> {
   @override
   void initState() {
     super.initState();
+    widget.controller?._attach(this);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.transparent)
@@ -90,6 +113,10 @@ class _WhalePetViewState extends State<WhalePetView> {
   @override
   void didUpdateWidget(covariant WhalePetView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach(this);
+      widget.controller?._attach(this);
+    }
     if (oldWidget.mood != widget.mood) {
       _applyMood();
     }
@@ -111,13 +138,14 @@ class _WhalePetViewState extends State<WhalePetView> {
   @override
   void dispose() {
     _autoActionTimer?.cancel();
+    widget.controller?._detach(this);
     super.dispose();
   }
 
-  /// 每 18~38 秒触发一次 kit 的随机小动作（待机灵动感）
+  /// 每 8~19 秒触发一次 kit 的随机小动作（待机灵动感）
   void _scheduleAutoAction() {
     if (!widget.autoAction) return;
-    final delay = 18 + math.Random().nextInt(20);
+    final delay = 8 + math.Random().nextInt(12);
     _autoActionTimer = Timer(Duration(seconds: delay), () {
       if (!mounted) return;
       if (_ready) _call('window.petApi && window.petApi.randomAction()');
@@ -145,7 +173,7 @@ class _WhalePetViewState extends State<WhalePetView> {
   }
 
   void _applyScale() {
-    final value = widget.scale.clamp(0.4, 1.2);
+    final value = widget.scale.clamp(0.3, 1.6);
     _call('window.petApi && window.petApi.setScale($value)');
   }
 
@@ -167,6 +195,17 @@ class _WhalePetViewState extends State<WhalePetView> {
   /// 触发一次随机小动作
   Future<void> randomAction() =>
       _call('window.petApi && window.petApi.randomAction()');
+
+  /// 设置表情（如 'happy' / 'surprised' / 'dragged'）
+  Future<void> setExpr(String id, {double seconds = 1.5}) =>
+      _call("window.petApi && window.petApi.setExpr('$id', $seconds)");
+
+  /// 拖动开始/结束：被拎起表情 ↔ 恢复当前情绪
+  Future<void> dragged(bool on) {
+    if (on) return setExpr('dragged', seconds: 1.2);
+    _applyMood();
+    return Future.value();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/morandi_theme.dart';
 import '../../../core/ai/ai_client.dart';
+import '../../../core/utils/confirm_dialog.dart';
 import '../application/ai_service.dart';
 import '../data/chat_state.dart';
 import 'ai_draft_list.dart';
@@ -125,6 +126,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     await _showDraftsFor(text);
   }
 
+  Future<void> _deleteSelected() async {
+    final count = ref.read(chatProvider).selected.length;
+    final ok = await showConfirmDialog(
+      context,
+      title: '删除消息',
+      content: '删除选中的 $count 条消息？',
+      confirmText: '删除',
+      danger: true,
+    );
+    if (ok == true) await ref.read(chatProvider.notifier).deleteSelected();
+  }
+
+  Future<void> _clearAll() async {
+    final ok = await showConfirmDialog(
+      context,
+      title: '清空对话',
+      content: '将删除全部聊天记录',
+      confirmText: '清空',
+      danger: true,
+    );
+    if (ok == true) await ref.read(chatProvider.notifier).clear();
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = Theme.of(context).extension<MorandiPalette>()!;
@@ -132,15 +156,28 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('问答'),
+        title: Text(chat.selecting ? '已选 ${chat.selected.length} 条' : '问答'),
+        leading: chat.selecting
+            ? IconButton(
+                onPressed: () =>
+                    ref.read(chatProvider.notifier).clearSelection(),
+                icon: const Icon(Icons.close),
+                tooltip: '取消选择',
+              )
+            : null,
         actions: [
-          IconButton(
-            onPressed: chat.turns.isEmpty
-                ? null
-                : () => ref.read(chatProvider.notifier).clear(),
-            icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: '清空对话',
-          ),
+          if (chat.selecting)
+            IconButton(
+              onPressed: _deleteSelected,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: '删除选中',
+            )
+          else
+            IconButton(
+              onPressed: chat.turns.isEmpty ? null : _clearAll,
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: '清空对话',
+            ),
         ],
       ),
       body: SafeArea(
@@ -159,6 +196,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           return _Bubble(
                             turn: turn,
                             palette: palette,
+                            selecting: chat.selecting,
+                            selected: chat.selected.contains(turn.id),
+                            onToggleSelect: () => ref
+                                .read(chatProvider.notifier)
+                                .toggleSelect(turn.id),
+                            onLongPress: () => ref
+                                .read(chatProvider.notifier)
+                                .toggleSelect(turn.id),
                             onToTask: turn.isUser
                                 ? null
                                 : () => _showDraftsFor(turn.text),
@@ -277,88 +322,118 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 }
 
-/// 聊天气泡（用户右侧 / 小屿左侧）
+/// 聊天气泡（用户右侧 / 小屿左侧；支持多选删除）
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.turn, required this.palette, this.onToTask});
+  const _Bubble({
+    required this.turn,
+    required this.palette,
+    this.selecting = false,
+    this.selected = false,
+    this.onToggleSelect,
+    this.onLongPress,
+    this.onToTask,
+  });
 
   final ChatTurn turn;
   final MorandiPalette palette;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onToggleSelect;
+  final VoidCallback? onLongPress;
   final VoidCallback? onToTask;
 
   @override
   Widget build(BuildContext context) {
     final isUser = turn.isUser;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment: isUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 15,
-              backgroundColor: palette.accent,
-              child: Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: palette.primaryDark,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isUser
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? palette.primary.withValues(alpha: 0.85)
-                        : palette.card,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isUser ? 16 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 16),
-                    ),
-                    border: Border.all(color: palette.outline),
-                  ),
-                  child: Text(
-                    turn.text,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: isUser ? Colors.white : palette.textPrimary,
-                    ),
-                  ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: onLongPress,
+      onTap: selecting ? onToggleSelect : null,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          mainAxisAlignment: isUser
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (selecting)
+              Padding(
+                padding: const EdgeInsets.only(right: 4, top: 8),
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onToggleSelect?.call(),
+                  activeColor: palette.primary,
+                  visualDensity: VisualDensity.compact,
                 ),
-                if (onToTask != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, left: 2),
-                    child: TextButton.icon(
-                      onPressed: onToTask,
-                      icon: const Icon(Icons.playlist_add, size: 16),
-                      label: const Text('转为任务', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(
-                        foregroundColor: palette.primaryDark,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        minimumSize: const Size(0, 28),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            if (!isUser) ...[
+              CircleAvatar(
+                radius: 15,
+                backgroundColor: palette.accent,
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 16,
+                  color: palette.primaryDark,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Column(
+                crossAxisAlignment: isUser
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isUser
+                          ? palette.primary.withValues(alpha: 0.85)
+                          : palette.card,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isUser ? 16 : 4),
+                        bottomRight: Radius.circular(isUser ? 4 : 16),
+                      ),
+                      border: Border.all(color: palette.outline),
+                    ),
+                    child: Text(
+                      turn.text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: isUser ? Colors.white : palette.textPrimary,
                       ),
                     ),
                   ),
-              ],
+                  if (onToTask != null && !selecting)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, left: 2),
+                      child: TextButton.icon(
+                        onPressed: onToTask,
+                        icon: const Icon(Icons.playlist_add, size: 16),
+                        label: const Text(
+                          '转为任务',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.primaryDark,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(0, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

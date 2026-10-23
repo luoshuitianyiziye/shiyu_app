@@ -86,6 +86,8 @@ flutter:
     - assets/ranks/
     - assets/audio/
     - assets/sounds/
+    - assets/sounds/duck/
+    - assets/sounds/agent/
     - assets/ai/whale/
 
   # An image asset can refer to one or more resolution-specific "variants", see

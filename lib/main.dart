@@ -12,6 +12,7 @@ import 'core/db/db_providers.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/notifications/reminder_coordinator.dart';
 import 'features/ai/data/ai_mascot_settings.dart';
+import 'features/ai/data/chat_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,9 @@ Future<void> main() async {
 
   // AI 形象设置（大小/皮肤/音效）从本地加载
   container.read(aiMascotSettingsProvider.notifier).load();
+
+  // 问答历史从本地加载
+  container.read(chatProvider.notifier).load();
 
   // 跨午夜守护：每分钟检查日期是否翻篇 → 刷新今日列表 + 滚动重复任务
   // 带异常保护与重入防护：tick 内任一异步步骤抛错不会让当天滚动/提醒调度
