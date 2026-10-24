@@ -36,12 +36,14 @@ class ShenshenPetView extends StatefulWidget {
 
 class _ShenshenPetViewState extends State<ShenshenPetView>
     with SingleTickerProviderStateMixin {
-  // 帧图原始尺寸（248x294，来自 640x360 视频的身体框裁剪）
-  static const _frameW = 248.0;
+  // 角色身体框参考高（视频坐标 294，用于显示尺寸换算）
   static const _frameH = 294.0;
 
   final Map<String, int> _frameCount = {};
   final Map<String, double> _clipFps = {};
+
+  /// 每个动作的裁剪框（视频像素坐标，用于锚点对齐，避免截断）
+  final Map<String, Rect> _clipBox = {};
   final math.Random _random = math.Random();
   bool _loaded = false;
   int _randomCount = 0;
@@ -94,10 +96,17 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
       final data = jsonDecode(raw) as Map<String, dynamic>;
       final counts = <String, int>{};
       final fps = <String, double>{};
+      final boxes = <String, Rect>{};
       for (final entry in data.entries) {
         final v = entry.value as Map;
         counts[entry.key] = (v['frames'] as num).toInt();
         fps[entry.key] = (v['fps'] as num).toDouble();
+        boxes[entry.key] = Rect.fromLTWH(
+          (v['x'] as num?)?.toDouble() ?? 196,
+          (v['y'] as num?)?.toDouble() ?? 46,
+          (v['w'] as num?)?.toDouble() ?? 248,
+          (v['h'] as num?)?.toDouble() ?? 294,
+        );
       }
       if (!mounted) return;
       int countOf(String prefix) =>
@@ -105,6 +114,7 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
       setState(() {
         _frameCount.addAll(counts);
         _clipFps.addAll(fps);
+        _clipBox.addAll(boxes);
         _randomCount = countOf('random_');
         _clickCount = countOf('click_');
         _moveCount = countOf('move_');
@@ -310,29 +320,35 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
       builder: (context, constraints) {
         _areaW = constraints.maxWidth;
         _areaH = constraints.maxHeight;
-        // 以原始帧分辨率（294）为基准按系数缩放：0.4~1.2 → 141~423px，
-        // 默认 0.7 ≈ 247px（接近点对点，清晰）；调大时仅轻微放大。
+        // 角色显示高度（以身体框高 294 为基准）：0.4~1.2 → 141~423px
         _petH = _frameH * widget.scale * 1.2;
-        _petW = _petH * _frameW / _frameH;
         if (!_loaded) return const SizedBox.shrink();
 
+        // 当前动作的裁剪框（视频像素坐标）与缩放系数
+        final box = _clipBox[_clip] ?? const Rect.fromLTWH(196, 46, 248, 294);
+        final s = _petH / _frameH;
+        final fw = box.width * s;
+        final fh = box.height * s;
+        _petW = fw;
+
         final cx = (_cx ?? constraints.maxWidth / 2)
-            .clamp(
-              _petW / 2,
-              math.max(_petW / 2, constraints.maxWidth - _petW / 2),
-            )
+            .clamp(fw / 2, math.max(fw / 2, constraints.maxWidth - fw / 2))
             .toDouble();
-        final bottom = _h
-            .clamp(0.0, math.max(0.0, constraints.maxHeight - _petH))
-            .toDouble();
+        final bottom = _h.clamp(0.0, _areaH).toDouble();
+
+        // 身体锚点：视频坐标中角色中心 x=320、脚底 y=330
+        const bodyCx = 320.0;
+        const bodyFootY = 330.0;
+        final left = cx - (bodyCx - box.left) * s;
+        final frameBottom = bottom + (bodyFootY - box.top - box.height) * s;
 
         return Stack(
           children: [
             Positioned(
-              left: cx - _petW / 2,
-              bottom: bottom,
-              width: _petW,
-              height: _petH,
+              left: left,
+              bottom: frameBottom,
+              width: fw,
+              height: fh,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _onTap,

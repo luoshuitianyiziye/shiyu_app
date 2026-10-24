@@ -1058,8 +1058,8 @@ class _PetOverlayCardState extends ConsumerState<_PetOverlayCard> {
           return;
         }
         await FlutterOverlayWindow.showOverlay(
-          width: 380,
-          height: 460,
+          width: 540,
+          height: 560,
           alignment: OverlayAlignment.bottomRight,
           overlayTitle: '森森在桌面上陪着你',
           overlayContent: '长按森森可隐藏桌宠',
