@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -170,6 +171,7 @@ class SettingsPage extends ConsumerWidget {
             const _GroupTitle('AI 助手'),
             const _AiMascotSettingsCard(),
             const _AiSettingsCard(),
+            const _PetOverlayCard(),
 
             // ===== 数据备份 =====
             const _GroupTitle('数据备份'),
@@ -1000,6 +1002,137 @@ class _AiMascotSettingsCard extends ConsumerWidget {
               activeTrackColor: palette.primary,
               onChanged: notifier.setSoundOn,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 桌宠模式：在桌面/其他应用之上显示森森（悬浮窗）
+class _PetOverlayCard extends ConsumerStatefulWidget {
+  const _PetOverlayCard();
+
+  @override
+  ConsumerState<_PetOverlayCard> createState() => _PetOverlayCardState();
+}
+
+class _PetOverlayCardState extends ConsumerState<_PetOverlayCard> {
+  bool _active = false;
+  bool _visible = true;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    try {
+      final active = await FlutterOverlayWindow.isActive();
+      if (!mounted) return;
+      setState(() => _active = active);
+    } catch (_) {
+      // 插件不可用时保持关闭状态
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _toggle(bool on) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (on) {
+        var granted = await FlutterOverlayWindow.isPermissionGranted();
+        if (granted == false) {
+          granted = await FlutterOverlayWindow.requestPermission() ?? false;
+        }
+        if (granted != true) {
+          _toast('需要「显示在其他应用之上」权限才能显示桌宠');
+          return;
+        }
+        await FlutterOverlayWindow.showOverlay(
+          width: 380,
+          height: 460,
+          alignment: OverlayAlignment.bottomRight,
+          overlayTitle: '森森在桌面上陪着你',
+          overlayContent: '长按森森可隐藏桌宠',
+          enableDrag: false,
+          flag: OverlayFlag.defaultFlag,
+        );
+        if (!mounted) return;
+        setState(() {
+          _active = true;
+          _visible = true;
+        });
+      } else {
+        await FlutterOverlayWindow.closeOverlay();
+        if (!mounted) return;
+        setState(() => _active = false);
+      }
+    } catch (e) {
+      _toast('操作失败：$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setVisible(bool visible) async {
+    try {
+      await FlutterOverlayWindow.setOverlayVisible(visible: visible);
+      if (mounted) setState(() => _visible = visible);
+    } catch (e) {
+      _toast('操作失败：$e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<MorandiPalette>()!;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('桌宠模式'),
+              subtitle: const Text('在桌面或其他应用上显示森森（需悬浮窗权限）'),
+              value: _active,
+              activeTrackColor: palette.primary,
+              onChanged: _busy ? null : _toggle,
+            ),
+            if (_active)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _visible ? '显示中：长按森森呼出菜单' : '桌宠已隐藏，可在这里呼出',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: palette.textSecondary,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => _setVisible(!_visible),
+                    icon: Icon(
+                      _visible
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 18,
+                    ),
+                    label: Text(_visible ? '隐藏' : '呼出'),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

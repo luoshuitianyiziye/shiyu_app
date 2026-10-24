@@ -57,6 +57,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   webview_flutter: ^4.14.1
   audioplayers: ^6.8.1
+  flutter_overlay_window: ^1.0.2
 
 dev_dependencies:
   flutter_test:

@@ -17,6 +17,7 @@ class ShenshenPetView extends StatefulWidget {
     this.scale = 0.7,
     this.autoAction = true,
     this.onTap,
+    this.onLongPress,
   });
 
   /// 大小系数（0.4 ~ 1.2），形象高度 = 舞台高度 * 30% * scale
@@ -25,6 +26,9 @@ class ShenshenPetView extends StatefulWidget {
   /// 是否自动做动作/漫步
   final bool autoAction;
   final VoidCallback? onTap;
+
+  /// 长按形象（桌面悬浮窗里用于呼出菜单）
+  final VoidCallback? onLongPress;
 
   @override
   State<ShenshenPetView> createState() => _ShenshenPetViewState();
@@ -54,6 +58,8 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
   double? _cx;
   double _h = 0;
   double _vy = 0;
+  double _vx = 0;
+  bool _airborne = false;
   double _facing = 1;
   bool _dragging = false;
 
@@ -176,23 +182,49 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
 
   void _stepPhysics(double dt) {
     if (_dragging) return;
+    if (_petW <= 0) return;
 
-    // 重力下落 + 落地回弹
-    if (_h > 0 || _vy.abs() > 0.1) {
-      _vy -= 900 * dt;
+    final minX = _petW / 2;
+    final maxX = math.max(_petW / 2, _areaW - _petW / 2);
+
+    // 重力 + 空气阻力（抛飞 / 下落）
+    if (_airborne || _h > 0 || _vy.abs() > 0.5) {
+      _vy -= 1800 * dt;
+      _vx *= (1 - 0.6 * dt);
+      _vy *= (1 - 0.15 * dt);
       _h += _vy * dt;
+
+      var cx = (_cx ?? _areaW / 2) + _vx * dt;
+      if (cx < minX) {
+        cx = minX;
+        _vx = -_vx * 0.45;
+      } else if (cx > maxX) {
+        cx = maxX;
+        _vx = -_vx * 0.45;
+      }
+      _cx = cx;
+
+      // 落地：反弹衰减 + 地面摩擦滑行
       if (_h <= 0) {
         _h = 0;
-        if (_vy < -80) {
-          _vy = -_vy * 0.35; // 回弹
+        if (_vy < -160) {
+          _vy = -_vy * 0.45;
+          _vx *= 0.85;
         } else {
           _vy = 0;
+          _vx *= (1 - 5 * dt);
+          if (_vx.abs() < 6) _vx = 0;
+          if (_airborne) {
+            _airborne = false;
+            _play('idle');
+          }
         }
       }
+      if (_h == 0 && _vy == 0 && _vx == 0) _airborne = false;
     }
 
     // 漫步移动
-    if (_clip.startsWith('move_') && _t < _moveUntil) {
+    if (_clip.startsWith('move_') && _t < _moveUntil && !_airborne) {
       final cx = _cx ?? _areaW / 2;
       _cx = (cx + _facing * 46 * dt).clamp(
         _petW / 2,
@@ -206,7 +238,9 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
 
   void _decideWhenIdle() {
     if (!widget.autoAction) return;
-    if (_dragging || _clip != 'idle' || _t < _nextDecision) return;
+    if (_dragging || _airborne || _clip != 'idle' || _t < _nextDecision) {
+      return;
+    }
     final r = _random.nextDouble();
     if (r < 0.28) {
       // 继续待机
@@ -245,6 +279,8 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
 
   void _onPanStart(DragStartDetails details) {
     _dragging = true;
+    _airborne = false;
+    _vx = 0;
     _vy = 0;
     _play('drag');
   }
@@ -261,7 +297,11 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
 
   void _onPanEnd(DragEndDetails details) {
     _dragging = false;
-    _vy = 0; // 从当前位置自由落体
+    final v = details.velocity.pixelsPerSecond;
+    // 甩出：按拖动速度抛飞（水平惯性 + 垂直初速），空中保持悬空动画
+    _vx = v.dx.clamp(-3000.0, 3000.0);
+    _vy = (-v.dy).clamp(-3000.0, 3000.0);
+    _airborne = true;
   }
 
   @override
@@ -296,6 +336,7 @@ class _ShenshenPetViewState extends State<ShenshenPetView>
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _onTap,
+                onLongPress: widget.onLongPress,
                 onPanStart: _onPanStart,
                 onPanUpdate: _onPanUpdate,
                 onPanEnd: _onPanEnd,

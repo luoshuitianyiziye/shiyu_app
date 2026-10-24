@@ -13,6 +13,13 @@ import 'core/notifications/notification_service.dart';
 import 'core/notifications/reminder_coordinator.dart';
 import 'features/ai/data/ai_mascot_settings.dart';
 import 'features/ai/data/chat_state.dart';
+import 'features/ai/presentation/shenshen/overlay_pet_app.dart';
+
+/// 桌宠悬浮窗入口（flutter_overlay_window 约定）
+@pragma('vm:entry-point')
+void overlayMain() {
+  runApp(const OverlayPetApp());
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
