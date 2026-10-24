@@ -1,52 +1,4 @@
 {
- "balance_0": {
-  "frames": 30,
-  "fps": 8
- },
- "balance_1": {
-  "frames": 30,
-  "fps": 8
- },
- "balance_2": {
-  "frames": 30,
-  "fps": 8
- },
- "balance_3": {
-  "frames": 30,
-  "fps": 8
- },
- "balance_4": {
-  "frames": 30,
-  "fps": 8
- },
- "balance_5": {
-  "frames": 30,
-  "fps": 8
- },
- "click_0": {
-  "frames": 30,
-  "fps": 8
- },
- "click_1": {
-  "frames": 30,
-  "fps": 8
- },
- "click_2": {
-  "frames": 30,
-  "fps": 8
- },
- "click_3": {
-  "frames": 30,
-  "fps": 8
- },
- "click_4": {
-  "frames": 30,
-  "fps": 8
- },
- "drag_0": {
-  "frames": 30,
-  "fps": 8
- },
  "idle": {
   "frames": 30,
   "fps": 8
@@ -68,6 +20,38 @@
   "fps": 8
  },
  "random_1": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_2": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_3": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_4": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_5": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_6": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_7": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_8": {
+  "frames": 30,
+  "fps": 8
+ },
+ "random_9": {
   "frames": 30,
   "fps": 8
  },
@@ -111,10 +95,6 @@
   "frames": 30,
   "fps": 8
  },
- "random_2": {
-  "frames": 30,
-  "fps": 8
- },
  "random_20": {
   "frames": 30,
   "fps": 8
@@ -152,10 +132,6 @@
   "fps": 8
  },
  "random_29": {
-  "frames": 30,
-  "fps": 8
- },
- "random_3": {
   "frames": 30,
   "fps": 8
  },
@@ -199,10 +175,6 @@
   "frames": 30,
   "fps": 8
  },
- "random_4": {
-  "frames": 30,
-  "fps": 8
- },
  "random_40": {
   "frames": 30,
   "fps": 8
@@ -240,10 +212,6 @@
   "fps": 8
  },
  "random_49": {
-  "frames": 30,
-  "fps": 8
- },
- "random_5": {
   "frames": 30,
   "fps": 8
  },
@@ -287,10 +255,6 @@
   "frames": 30,
   "fps": 8
  },
- "random_6": {
-  "frames": 30,
-  "fps": 8
- },
  "random_60": {
   "frames": 30,
   "fps": 8
@@ -328,10 +292,6 @@
   "fps": 8
  },
  "random_69": {
-  "frames": 30,
-  "fps": 8
- },
- "random_7": {
   "frames": 30,
   "fps": 8
  },
@@ -375,10 +335,6 @@
   "frames": 30,
   "fps": 8
  },
- "random_8": {
-  "frames": 30,
-  "fps": 8
- },
  "random_80": {
   "frames": 30,
   "fps": 8
@@ -415,11 +371,55 @@
   "frames": 30,
   "fps": 8
  },
- "random_9": {
+ "click_0": {
+  "frames": 30,
+  "fps": 8
+ },
+ "click_1": {
+  "frames": 30,
+  "fps": 8
+ },
+ "click_2": {
+  "frames": 30,
+  "fps": 8
+ },
+ "click_3": {
+  "frames": 30,
+  "fps": 8
+ },
+ "click_4": {
   "frames": 30,
   "fps": 8
  },
  "turn_0": {
+  "frames": 30,
+  "fps": 8
+ },
+ "drag_0": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_0": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_1": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_2": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_3": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_4": {
+  "frames": 30,
+  "fps": 8
+ },
+ "balance_5": {
   "frames": 30,
   "fps": 8
  }
